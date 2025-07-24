@@ -95,6 +95,7 @@ fn init(_) {
       ),
       metadatas: dict.new(),
       series: dict.new(),
+      series_details: dict.new(),
       viewing_series: option.None,
       reader_progress: option.None,
       reader_image_loaded: False,
@@ -170,7 +171,11 @@ fn route_effect(model: model.Model, route: router.Route) -> Effect(layout.Msg) {
 }
 
 fn series_and_metadata(token: String, id: Int) -> Effect(layout.Msg) {
-  effect.batch([series_req.series(id, token), series_req.metadata(id, token)])
+  effect.batch([
+    series_req.series(id, token),
+    series_req.metadata(id, token),
+    series_req.series_details(id, token),
+  ])
 }
 
 fn scroll_reader() {
@@ -399,6 +404,21 @@ fn update(
       io.debug(e)
       #(model, effect.none())
     }
+    layout.SeriesDetailsRetrieved(Ok(#(series_id, details))) -> {
+      #(
+        model.Model(
+          ..model,
+          series_details: model.series_details
+            |> dict.insert(series_id, details),
+        ),
+        effect.none(),
+      )
+    }
+    layout.SeriesDetailsRetrieved(Error(e)) -> {
+      io.debug("series details retrieve fail")
+      io.debug(e)
+      #(model, effect.none())
+    }
     layout.AuthPage(auth_model.LoginSubmitted) -> {
       #(
         model,
@@ -551,11 +571,20 @@ fn update(
       }
       #(model, eff)
     }
-    layout.Read -> {
+    layout.Read(chp) -> {
       case model.user {
         option.Some(user) -> {
-          let assert option.Some(Ok(serie)) = model.viewing_series
-          #(model, reader.continue_point(user.token, serie.id))
+          case chp {
+            option.Some(chapter_id) -> #(model, {
+              let assert Ok(reader) =
+                uri.parse("/chapter/" <> int.to_string(chapter_id))
+              modem.load(reader)
+            })
+            option.None -> {
+              let assert option.Some(Ok(serie)) = model.viewing_series
+              #(model, reader.continue_point(user.token, serie.id))
+            }
+          }
         }
         option.None ->
           todo as "decide what should be done if read is used while not logged in"

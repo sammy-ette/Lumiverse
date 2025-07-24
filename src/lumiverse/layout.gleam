@@ -25,6 +25,9 @@ pub type Msg {
   SmartFilterDecode(Result(filter.SmartFilter, http.HttpError))
   //                           \/ represents whether its from dashboard call
   AllSeriesRetrieved(Result(#(Bool, model.SeriesList), http.HttpError))
+  //                               \/ series id is not in the response.
+  // we need to know it, so its sent back here
+  SeriesDetailsRetrieved(Result(#(Int, series.Details), http.HttpError))
 
   // Auth
   AuthPage(auth.Msg)
@@ -39,7 +42,8 @@ pub type Msg {
   SeriesMetadataRetrieved(Result(series.Metadata, http.HttpError))
 
   // Reader
-  Read
+  // if None, read from last chapter
+  Read(option.Option(Int))
   ReaderPrevious
   ReaderNext
   ReaderImageLoaded(id: String)

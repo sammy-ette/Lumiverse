@@ -34,8 +34,8 @@ pub fn button(
 
 pub fn solid(color: Colors) -> Attribute(a) {
   case color {
-    Neutral -> "bg-zinc-700 text-white hover:enabled:bg-neutral/90"
-    Primary -> "bg-violet-600 text-white hover:enabled:bg-primary/90"
+    Neutral -> "bg-zinc-700 text-white hover:enabled:bg-zinc-700/60"
+    Primary -> "bg-violet-600 text-white hover:enabled:bg-violet-600/60"
     Secondary ->
       "bg-secondary text-secondary-foreground hover:enabled:bg-secondary/90"
     Success -> "bg-success text-success-foreground hover:enabled:bg-success/90"

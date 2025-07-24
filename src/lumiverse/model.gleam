@@ -20,6 +20,7 @@ pub type Model {
     home: HomeModel,
     metadatas: dict.Dict(Int, series.Metadata),
     series: dict.Dict(Int, series.MinimalInfo),
+    series_details: dict.Dict(Int, series.Details),
     viewing_series: option.Option(Result(series.MinimalInfo, http.HttpError)),
     reader_progress: option.Option(reader.Progress),
     reader_image_loaded: Bool,
