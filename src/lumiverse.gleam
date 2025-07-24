@@ -130,7 +130,11 @@ fn homepage_display(user: option.Option(auth_model.User)) -> Effect(layout.Msg) 
 
 fn route_effect(model: model.Model, route: router.Route) -> Effect(layout.Msg) {
   let eff = case route {
-    router.Home -> homepage_display(model.user)
+    router.Home ->
+      case model.user == option.None && model.guest == False {
+        True -> router_handler.change_route("/login")
+        False -> homepage_display(model.user)
+      }
     router.OIDCCallback -> {
       oidc.callback(model.oidc_config.authority, model.oidc_config.client_id)
       effect.none()
@@ -190,12 +194,6 @@ fn update(
   msg: layout.Msg,
 ) -> #(model.Model, Effect(layout.Msg)) {
   case msg {
-    layout.Router(router.ChangeRoute(route)) -> {
-      #(
-        model.Model(..model, route: route, viewing_series: option.None),
-        route_effect(model, route),
-      )
-    }
     layout.HealthCheck(Ok(Nil)) -> {
       #(
         model.Model(..model, health_failed: option.Some(False)),
@@ -225,6 +223,12 @@ fn update(
       model.Model(..model, health_failed: option.Some(True)),
       effect.none(),
     )
+    layout.Router(router.ChangeRoute(route)) -> {
+      #(
+        model.Model(..model, route: route, viewing_series: option.None),
+        route_effect(model, route),
+      )
+    }
     layout.ConfigGot(Ok(conf)) -> {
       #(model.Model(..model, oidc_config: conf), effect.none())
     }
