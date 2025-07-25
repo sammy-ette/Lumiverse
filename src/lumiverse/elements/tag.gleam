@@ -1,6 +1,7 @@
 import gleam/bool
 import gleam/list
 import gleam/string
+import lustre/event
 
 import lustre/attribute
 import lustre/element
@@ -20,7 +21,7 @@ pub fn single(tag: String) -> element.Element(layout.Msg) {
   html.div(
     [
       attribute.class(
-        "h-fit self-center rounded py-0.5 px-1 "
+        "flex relative group h-fit self-center items-center justify-center rounded py-0.5 px-1 "
         <> {
           let is_content_type =
             list.contains(tag_criteria.content_type, string.lowercase(tag))
@@ -39,7 +40,22 @@ pub fn single(tag: String) -> element.Element(layout.Msg) {
         },
       ),
     ],
-    [html.span([], [element.text(tag)])],
+    [
+      html.span(
+        [
+          attribute.class("group-hover:opacity-0"),
+          event.on_click(layout.TagClicked(cross: False)),
+        ],
+        [element.text(tag)],
+      ),
+      html.span(
+        [
+          attribute.class("icon-cross absolute hidden group-hover:block"),
+          event.on_click(layout.TagClicked(cross: True)),
+        ],
+        [],
+      ),
+    ],
   )
 }
 

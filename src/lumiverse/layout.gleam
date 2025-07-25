@@ -34,6 +34,7 @@ pub type Msg {
   LoginGot(Result(auth.User, http.HttpError))
   RefreshGot(Result(auth.Refresh, http.HttpError))
   ConfigGot(Result(auth.Config, http.HttpError))
+  RolesGot(Result(List(auth.Role), http.HttpError))
 
   //Home
   DashboardRetrieved(Result(List(stream.DashboardItem), http.HttpError))
@@ -44,6 +45,7 @@ pub type Msg {
   // Series Page
   RequestSeriesUpdate(series.MinimalInfo)
   SeriesUpdateRequested(Result(Nil, http.HttpError))
+  TagClicked(cross: Bool)
 
   // Reader
   // if None, read from last chapter
@@ -63,7 +65,7 @@ pub fn nav(model: model.Model) {
   html.nav(
     [
       attribute.class(
-        "bg-zinc-950"
+        "bg-zinc-950/85 backdrop-blur-xl"
         <> case model.route {
           router.Reader(_) -> ""
           _ -> " sticky top-0 left-0 right-0"

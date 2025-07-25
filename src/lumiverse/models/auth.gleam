@@ -22,8 +22,26 @@ pub type LoginRequest {
   LoginRequest(username: String, password: String, api_key: String)
 }
 
+pub type Role {
+  Admin
+  Download
+  ChangePassword
+  Bookmark
+  ChangeRestriction
+  Login
+  ReadOnly
+  Promote
+  Unimplemented
+}
+
 pub type User {
-  User(username: String, token: String, refresh_token: String, api_key: String)
+  User(
+    username: String,
+    token: String,
+    refresh_token: String,
+    api_key: String,
+    roles: option.Option(List(Role)),
+  )
 }
 
 pub type Refresh {

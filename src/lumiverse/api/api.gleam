@@ -17,12 +17,13 @@ import lumiverse/models/stream
 
 // UPDATE BOTH
 fn decoder() {
-  dynamic.decode4(
+  dynamic.decode5(
     auth.User,
     dynamic.field("username", dynamic.string),
     dynamic.field("token", dynamic.string),
     dynamic.field("refreshToken", dynamic.string),
     dynamic.field("apiKey", dynamic.string),
+    fn(_) { Ok(option.None) },
   )
 }
 
@@ -97,6 +98,40 @@ pub fn refresh_auth(token: String, refresh_token: String) {
     router.direct("/api/account/refresh-token"),
     req_json,
     lustre_http.expect_json(refresh_decoder(), layout.RefreshGot),
+  )
+}
+
+fn dynamic_role(
+  from: dynamic.Dynamic,
+) -> Result(auth.Role, List(dynamic.DecodeError)) {
+  let role = dynamic.string(from)
+  case role {
+    Ok(str) ->
+      case str {
+        "Admin" -> Ok(auth.Admin)
+        _ -> {
+          io.debug("unhandled role " <> str)
+          Ok(auth.Unimplemented)
+        }
+      }
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn roles(token: String) {
+  let assert Ok(req) = request.to(router.direct("/api/account/roles"))
+
+  let req =
+    req
+    |> request.set_method(http.Get)
+    |> request.set_body(json.object([]) |> json.to_string)
+    |> request.set_header("Authorization", "Bearer " <> token)
+    |> request.set_header("Accept", "application/json")
+    |> request.set_header("Content-Type", "application/json")
+
+  lustre_http.send(
+    req,
+    lustre_http.expect_json(dynamic.list(dynamic_role), layout.RolesGot),
   )
 }
 

@@ -201,6 +201,7 @@ fn update(
           case model.user {
             option.Some(user) -> [
               api.refresh_auth(user.token, user.refresh_token),
+              api.roles(user.token),
             ]
             option.None -> [api.config()]
           },
@@ -575,6 +576,31 @@ fn update(
       }
       #(model, eff)
     }
+    layout.RolesGot(Ok(roles)) -> {
+      let assert option.Some(user) = model.user
+      #(
+        model.Model(
+          ..model,
+          user: option.Some(auth_model.User(..user, roles: option.Some(roles))),
+        ),
+        effect.none(),
+      )
+    }
+    layout.RolesGot(Error(_)) -> {
+      io.debug("failed to get user roles")
+      #(model, effect.none())
+    }
+    layout.TagClicked(cross) ->
+      case cross {
+        True -> {
+          io.debug("deleting tag")
+          #(model, effect.none())
+        }
+        False -> {
+          io.debug("opening tag")
+          #(model, effect.none())
+        }
+      }
     layout.Read(chp) -> {
       case model.user {
         option.Some(user) -> {
