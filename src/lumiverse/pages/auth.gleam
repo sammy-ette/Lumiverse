@@ -21,21 +21,17 @@ pub fn login(model: model.Model) {
       ],
       [
         html.div([attribute.class("px-9 py-6 flex flex-col space-y-4")], [
+          html.h1(
+            [attribute.class("font-semibold text-xl text-center text-white")],
+            [element.text("Sign in to your account")],
+          ),
+          html.p([attribute.class("text-center text-violet-600")], [
+            element.text(model.auth.auth_message),
+          ]),
           case model.oidc_config.disable_password {
             True -> element.none()
             False ->
               html.div([attribute.class("space-y-4")], [
-                html.h1(
-                  [
-                    attribute.class(
-                      "font-semibold text-xl text-center text-white",
-                    ),
-                  ],
-                  [element.text("Sign in to your account")],
-                ),
-                html.p([attribute.class("text-violet-600")], [
-                  element.text(model.auth.auth_message),
-                ]),
                 html.form([attribute.class("space-y-4")], [
                   html.div([], [
                     html.label(

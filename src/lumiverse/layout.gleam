@@ -111,7 +111,10 @@ pub fn nav(model: model.Model) {
           ),
           case model.guest, model.user {
             False, option.Some(user) ->
-              html.div([], [
+              html.div([attribute.class("flex")], [
+                button([button.md(), button.solid(button.Neutral)], [
+                  element.text("Upload"),
+                ]),
                 button([button.md(), attribute.class("text-white")], [
                   element.text(user.username),
                 ]),

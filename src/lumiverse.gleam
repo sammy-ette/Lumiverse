@@ -8,7 +8,6 @@ import gleam/option
 import gleam/order
 import gleam/result
 import gleam/uri
-import juno
 import lustre
 import lustre/attribute
 import lustre/effect.{type Effect}
@@ -105,7 +104,7 @@ fn init(_) {
       chapter_info: option.None,
     )
 
-  io.debug(model.guest)
+  echo model.guest
 
   #(model, effect.batch([modem.init(on_url_change), api.health()]))
 }
@@ -234,7 +233,7 @@ fn update(
       #(model.Model(..model, oidc_config: conf), effect.none())
     }
     layout.ConfigGot(Error(_)) -> {
-      io.debug("config failed")
+      echo "config failed"
       #(model, effect.none())
     }
     layout.DashboardRetrieved(Ok(dashboard)) -> {
@@ -296,7 +295,7 @@ fn update(
       )
     }
     layout.DashboardRetrieved(Error(e)) -> {
-      io.debug(e)
+      echo e
       todo as "handle dashboard retrieve failure"
     }
     layout.DashboardItemRetrieved(Ok(series)) -> {
@@ -348,7 +347,7 @@ fn update(
     }
     layout.DashboardItemRetrieved(Error(e)) -> {
       io.println("failure")
-      io.debug(e)
+      echo e
       #(model, effect.none())
     }
     layout.SmartFilterDecode(Ok(smart_filter)) -> {
@@ -356,7 +355,7 @@ fn update(
       #(model, series_req.all(user.token, smart_filter))
     }
     layout.SmartFilterDecode(Error(e)) -> {
-      io.debug(e)
+      echo e
       todo as "smart filter failed :("
     }
     layout.AllSeriesRetrieved(Ok(all_serie)) -> {
@@ -406,7 +405,7 @@ fn update(
     }
     layout.SeriesMetadataRetrieved(Error(e)) -> {
       io.println("metadata fetch failed")
-      io.debug(e)
+      echo e
       #(model, effect.none())
     }
     layout.SeriesDetailsRetrieved(Ok(#(series_id, details))) -> {
@@ -420,8 +419,8 @@ fn update(
       )
     }
     layout.SeriesDetailsRetrieved(Error(e)) -> {
-      io.debug("series details retrieve fail")
-      io.debug(e)
+      echo "series details retrieve fail"
+      echo e
       #(model, effect.none())
     }
     layout.AuthPage(auth_model.LoginSubmitted) -> {
@@ -442,12 +441,10 @@ fn update(
           fn(result) {
             case result {
               Ok(access_token) -> {
-                io.debug("hehe we're in")
-                io.debug(access_token)
                 layout.AuthPage(auth_model.OIDCComplete(access_token))
               }
               Error(_) -> {
-                io.debug("signin failure :(")
+                echo "signin failure :("
                 layout.AuthPage(auth_model.OIDCFailed)
               }
             }
@@ -462,7 +459,7 @@ fn update(
       #(
         model.Model(..model, doing_oidc: False),
         effect.from(fn(dispatch) {
-          "Sign in failed."
+          "Sign in failed. Try again later, or contact Cosmos."
           |> auth_model.AuthMessage
           |> layout.AuthPage
           |> dispatch
@@ -531,7 +528,7 @@ fn update(
           })
         }
         http.InternalServerError(err) -> {
-          io.debug(err)
+          echo err
           effect.from(fn(dispatch) {
             "SSO signin failure"
             |> auth_model.AuthMessage
@@ -540,7 +537,7 @@ fn update(
           })
         }
         e -> {
-          io.debug(e)
+          echo e
           todo as "handle login error not being unauthorized"
         }
       }
@@ -570,7 +567,7 @@ fn update(
           router_handler.change_route("/login")
         }
         _ -> {
-          io.debug(e)
+          echo e
           todo as "handle refresh error being something other than unauthorized"
         }
       }
@@ -587,17 +584,17 @@ fn update(
       )
     }
     layout.RolesGot(Error(_)) -> {
-      io.debug("failed to get user roles")
+      echo "failed to get user roles"
       #(model, effect.none())
     }
     layout.TagClicked(cross) ->
       case cross {
         True -> {
-          io.debug("deleting tag")
+          echo "deleting tag"
           #(model, effect.none())
         }
         False -> {
-          io.debug("opening tag")
+          echo "opening tag"
           #(model, effect.none())
         }
       }
@@ -626,8 +623,8 @@ fn update(
     layout.ReaderPrevious -> {
       io.println("WAIT GO BACK")
       let assert option.Some(current_progress) = model.reader_progress
-      io.debug(current_progress.page_number - 1)
-      io.debug(model.prev_chapter)
+      echo current_progress.page_number - 1
+      echo model.prev_chapter
       case current_progress.page_number - 1 {
         -1 -> {
           case model.prev_chapter {
@@ -778,12 +775,12 @@ fn update(
       #(model, series_req.request_update(serie, user.token, user.username))
     }
     layout.SeriesUpdateRequested(Ok(_)) -> {
-      io.debug("series update request sent successfully")
+      echo "series update request sent successfully"
       #(model, effect.none())
     }
     layout.SeriesUpdateRequested(Error(err)) -> {
-      io.debug("update request fail")
-      io.debug(err)
+      echo "update request fail"
+      echo err
       #(model, effect.none())
     }
   }

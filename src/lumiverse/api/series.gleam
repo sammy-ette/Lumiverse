@@ -1,4 +1,5 @@
 import gleam/dynamic
+import gleam/dynamic/decode
 import gleam/fetch
 import gleam/http
 import gleam/http/request
@@ -18,22 +19,29 @@ import lumiverse/models/stream
 import router
 
 fn metadata_decoder() {
-  dynamic.decode6(
-    series.Metadata,
-    dynamic.field("id", dynamic.int),
-    dynamic.field("genres", dynamic.list(tag_decoder())),
-    dynamic.field("tags", dynamic.list(tag_decoder())),
-    dynamic.field("summary", dynamic.string),
-    dynamic.field("publicationStatus", dynamic_publication),
-    dynamic.field("seriesId", dynamic.int),
+  use id <- decode.field("id", decode.int)
+  use genres <- decode.field("genres", decode.list(tag_decoder()))
+  use tags <- decode.field("tags", decode.list(tag_decoder()))
+  use summary <- decode.field("summary", decode.string)
+  use publication_status <- decode.field(
+    "publicationStatus",
+    decode.new_primitive_decoder("Publication", dynamic_publication),
   )
+  use series_id <- decode.field("seriesId", decode.int)
+  decode.success(series.Metadata(
+    id:,
+    genres:,
+    tags:,
+    summary:,
+    publication_status:,
+    series_id:,
+  ))
 }
 
 fn dynamic_publication(
   from: dynamic.Dynamic,
-) -> Result(series.Publication, List(dynamic.DecodeError)) {
-  let publication = dynamic.int(from)
-  case publication {
+) -> Result(series.Publication, series.Publication) {
+  case decode.run(from, decode.int) {
     Ok(num) ->
       case num {
         // https://github.com/Kareadita/Kavita/blob/develop/API/Entities/Enums/PublicationStatus.cs
@@ -42,25 +50,18 @@ fn dynamic_publication(
         2 -> Ok(series.Completed)
         3 -> Ok(series.Cancelled)
         4 -> Ok(series.Ended)
-        _ ->
-          Error([
-            dynamic.DecodeError(
-              expected: "expected publicationStatus to be int of range 0-4",
-              found: "it wasnt?? lol",
-              path: ["what?"],
-            ),
-          ])
+        _ -> Error(series.Ongoing)
+        // TODO: replace with unknown
       }
-    Error(e) -> Error(e)
+    Error(_) -> Error(series.Ongoing)
+    // TODO: replace with invalid
   }
 }
 
 fn tag_decoder() {
-  dynamic.decode2(
-    series.Tag,
-    dynamic.field("id", dynamic.int),
-    dynamic.field("title", dynamic.string),
-  )
+  use id <- decode.field("id", decode.int)
+  use title <- decode.field("title", decode.string)
+  decode.success(series.Tag(id:, title:))
 }
 
 pub fn recently_added(token: String, order: Int, title: String) {
@@ -80,7 +81,10 @@ pub fn recently_added(token: String, order: Int, title: String) {
   lustre_http.send(
     req,
     lustre_http.expect_json(
-      stream.dashboard_series_list_decoder(order, title),
+      decode.new_primitive_decoder(
+        "SeriesList",
+        stream.dashboard_series_list_decoder(order, title),
+      ),
       layout.DashboardItemRetrieved,
     ),
   )
@@ -103,7 +107,10 @@ pub fn recently_updated(token: String, order: Int, title: String) {
   lustre_http.send(
     req,
     lustre_http.expect_json(
-      stream.dashboard_recently_updated_decoder(order, title),
+      decode.new_primitive_decoder(
+        "RecentlyUpdated",
+        stream.dashboard_recently_updated_decoder(order, title),
+      ),
       layout.DashboardItemRetrieved,
     ),
   )
@@ -124,7 +131,10 @@ pub fn on_deck(token: String, order: Int, title: String) {
   lustre_http.send(
     req,
     lustre_http.expect_json(
-      stream.dashboard_series_list_decoder(order, title),
+      decode.new_primitive_decoder(
+        "SeriesList",
+        stream.dashboard_series_list_decoder(order, title),
+      ),
       layout.DashboardItemRetrieved,
     ),
   )
@@ -213,15 +223,14 @@ pub fn series_details(series_id: Int, token: String) {
   lustre_http.send(
     req,
     lustre_http.expect_json(
-      fn(val) {
-        let decoder = series.details_decoder()
-        case decoder(val) {
+      decode.new_primitive_decoder("SeriesDetails", fn(val) {
+        case decode.run(val, series.details_decoder()) {
           Ok(details) -> {
             Ok(#(series_id, details))
           }
-          Error(e) -> Error(e)
+          Error(_) -> Error(#(0, series.Details(chapters: [], volumes: [])))
         }
-      },
+      }),
       layout.SeriesDetailsRetrieved,
     ),
   )
@@ -244,9 +253,8 @@ pub fn all(token: String, smart_filter: filter.SmartFilter) {
   lustre_http.send(
     req,
     lustre_http.expect_json(
-      fn(val) {
-        let decoder = dynamic.list(series.minimal_decoder())
-        case decoder(val) {
+      decode.new_primitive_decoder("AllSeries", fn(val) {
+        case decode.run(val, decode.list(series.minimal_decoder())) {
           Ok(serieses) ->
             Ok(#(
               smart_filter.for_dashboard,
@@ -256,9 +264,10 @@ pub fn all(token: String, smart_filter: filter.SmartFilter) {
                 items: serieses,
               ),
             ))
-          Error(e) -> Error(e)
+          Error(_) ->
+            Error(#(True, model.SeriesList(idx: 0, title: "", items: [])))
         }
-      },
+      }),
       layout.AllSeriesRetrieved,
     ),
   )

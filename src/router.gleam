@@ -28,7 +28,9 @@ pub fn uri_to_route(uri: uri.Uri) -> router.Route {
 pub fn root_uri() -> uri.Uri {
   let route = get_route()
   case route.host, route.port {
-    option.Some("localhost"), option.Some(1234) -> {
+    option.Some("localhost"), option.Some(1234)
+    | option.Some("127.0.0.1"), option.Some(1234)
+    -> {
       let assert Ok(local) = uri.parse(common.kavita_dev_api)
       local
     }
@@ -43,8 +45,8 @@ pub fn root_url() -> String {
 pub fn direct_lumify(rel: String) -> String {
   let assert Ok(rel_url) = uri.parse("/lumify" <> rel)
   let assert Ok(direction) = uri.merge(root_uri(), rel_url)
-  io.debug("call to redirect to lumify result: " <> direction |> uri.to_string)
-  io.debug(rel)
+  echo "call to redirect to lumify result: " <> direction |> uri.to_string
+  echo rel
   uri.to_string(direction)
 }
 

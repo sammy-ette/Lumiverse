@@ -249,7 +249,7 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                   |> dict.from_list
                 let filtered_chapters =
                   list.filter(series_details.chapters, fn(chp: series.Chapter) {
-                    io.debug(dict.has_key(chapters_from_vols, chp.id))
+                    echo dict.has_key(chapters_from_vols, chp.id)
                     bool.negate(dict.has_key(chapters_from_vols, chp.id))
                   })
                 case list.is_empty(filtered_chapters) {

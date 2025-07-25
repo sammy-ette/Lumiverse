@@ -1,4 +1,5 @@
 import gleam/dynamic
+import gleam/dynamic/decode
 import gleam/http
 import gleam/http/request
 import gleam/json
@@ -17,14 +18,17 @@ import lumiverse/models/stream
 
 // UPDATE BOTH
 fn decoder() {
-  dynamic.decode5(
-    auth.User,
-    dynamic.field("username", dynamic.string),
-    dynamic.field("token", dynamic.string),
-    dynamic.field("refreshToken", dynamic.string),
-    dynamic.field("apiKey", dynamic.string),
-    fn(_) { Ok(option.None) },
-  )
+  use username <- decode.field("username", decode.string)
+  use token <- decode.field("token", decode.string)
+  use refresh_token <- decode.field("refreshToken", decode.string)
+  use api_key <- decode.field("apiKey", decode.string)
+  decode.success(auth.User(
+    username:,
+    token:,
+    refresh_token:,
+    api_key:,
+    roles: option.None,
+  ))
 }
 
 pub fn encode_login_json(user: auth.User) -> String {
@@ -33,6 +37,8 @@ pub fn encode_login_json(user: auth.User) -> String {
     #("token", json.string(user.token)),
     #("refreshToken", json.string(user.refresh_token)),
     #("apiKey", json.string(user.api_key)),
+    // roles is not actually in the login response.
+  // its just grouped in auth.User because it makes sense.
   ])
   |> json.to_string
 }
@@ -40,22 +46,27 @@ pub fn encode_login_json(user: auth.User) -> String {
 // ^^ UPDATE BOTH
 
 fn refresh_decoder() {
-  dynamic.decode2(
-    auth.Refresh,
-    dynamic.field("token", dynamic.string),
-    dynamic.field("refreshToken", dynamic.string),
-  )
+  use token <- decode.field("token", decode.string)
+  use refresh_token <- decode.field("refreshToken", decode.string)
+  decode.success(auth.Refresh(token:, refresh_token:))
 }
 
 fn config_decoder() {
-  dynamic.decode5(
-    auth.Config,
-    dynamic.field("authority", dynamic.string),
-    dynamic.field("clientId", dynamic.string),
-    dynamic.field("providerName", dynamic.string),
-    dynamic.field("disablePasswordAuthentication", dynamic.bool),
-    dynamic.field("autoLogin", dynamic.bool),
+  use authority <- decode.field("authority", decode.string)
+  use client_id <- decode.field("clientId", decode.string)
+  use provider_name <- decode.field("providerName", decode.string)
+  use disable_password <- decode.field(
+    "disablePasswordAuthentication",
+    decode.bool,
   )
+  use auto_login <- decode.field("autoLogin", decode.bool)
+  decode.success(auth.Config(
+    authority:,
+    client_id:,
+    provider_name:,
+    disable_password:,
+    auto_login:,
+  ))
 }
 
 pub fn login(username: String, password: String) {
@@ -101,20 +112,17 @@ pub fn refresh_auth(token: String, refresh_token: String) {
   )
 }
 
-fn dynamic_role(
-  from: dynamic.Dynamic,
-) -> Result(auth.Role, List(dynamic.DecodeError)) {
-  let role = dynamic.string(from)
-  case role {
+fn dynamic_role(from: dynamic.Dynamic) -> Result(auth.Role, auth.Role) {
+  case decode.run(from, decode.string) {
     Ok(str) ->
       case str {
         "Admin" -> Ok(auth.Admin)
         _ -> {
-          io.debug("unhandled role " <> str)
+          echo "unhandled role " <> str
           Ok(auth.Unimplemented)
         }
       }
-    Error(e) -> Error(e)
+    Error(_) -> Error(auth.Unimplemented)
   }
 }
 
@@ -131,12 +139,15 @@ pub fn roles(token: String) {
 
   lustre_http.send(
     req,
-    lustre_http.expect_json(dynamic.list(dynamic_role), layout.RolesGot),
+    lustre_http.expect_json(
+      decode.list(decode.new_primitive_decoder("Role", dynamic_role)),
+      layout.RolesGot,
+    ),
   )
 }
 
 pub fn decode_login_json(jd: String) -> Result(auth.User, json.DecodeError) {
-  json.decode(jd, decoder())
+  json.parse(jd, decoder())
 }
 
 pub fn health() {
@@ -154,15 +165,33 @@ pub fn config() {
 }
 
 fn dashboard_decoder() {
-  dynamic.list(dynamic.decode7(
-    stream.DashboardItem,
-    dynamic.field("id", dynamic.int),
-    dynamic.field("name", dynamic.string),
-    dynamic.field("isProvided", dynamic.bool),
-    dynamic.field("order", dynamic.int),
-    dynamic.field("streamType", stream.dynamic_streamtype),
-    dynamic.field("visible", dynamic.bool),
-    dynamic.optional_field("smartFilterEncoded", dynamic.string),
+  use id <- decode.field("id", decode.int)
+  use name <- decode.field("name", decode.string)
+  use provided <- decode.field("isProvided", decode.bool)
+  use order <- decode.field("order", decode.int)
+  use stream_type <- decode.field(
+    "streamType",
+    decode.new_primitive_decoder("StreamType", stream.dynamic_streamtype),
+  )
+  use visible <- decode.field("visible", decode.bool)
+  use smart_filter_encoded <- decode.optional_field(
+    "smartFilterEncoded",
+    option.None,
+    decode.new_primitive_decoder("Option", fn(from: dynamic.Dynamic) {
+      case decode.run(from, decode.string) {
+        Ok(x) -> Ok(option.Some(x))
+        Error(_) -> Ok(option.None)
+      }
+    }),
+  )
+  decode.success(stream.DashboardItem(
+    id:,
+    name:,
+    provided:,
+    order:,
+    stream_type:,
+    visible:,
+    smart_filter_encoded:,
   ))
 }
 
@@ -179,6 +208,9 @@ pub fn dashboard(token: String) {
 
   lustre_http.send(
     req,
-    lustre_http.expect_json(dashboard_decoder(), layout.DashboardRetrieved),
+    lustre_http.expect_json(
+      decode.list(dashboard_decoder()),
+      layout.DashboardRetrieved,
+    ),
   )
 }

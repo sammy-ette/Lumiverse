@@ -1,4 +1,5 @@
 import gleam/dynamic
+import gleam/dynamic/decode
 
 pub type Manga {
   Manga(
@@ -19,11 +20,9 @@ pub type Details {
 }
 
 pub fn details_decoder() {
-  dynamic.decode2(
-    Details,
-    dynamic.field("chapters", dynamic.list(chapter_decoder())),
-    dynamic.field("volumes", dynamic.list(volume_decoder())),
-  )
+  use chapters <- decode.field("chapters", decode.list(chapter_decoder()))
+  use volumes <- decode.field("volumes", decode.list(volume_decoder()))
+  decode.success(Details(chapters:, volumes:))
 }
 
 pub type Volume {
@@ -31,13 +30,11 @@ pub type Volume {
 }
 
 pub fn volume_decoder() {
-  dynamic.decode4(
-    Volume,
-    dynamic.field("id", dynamic.int),
-    dynamic.field("name", dynamic.string),
-    dynamic.field("maxNumber", dynamic.int),
-    dynamic.field("chapters", dynamic.list(chapter_decoder())),
-  )
+  use id <- decode.field("id", decode.int)
+  use name <- decode.field("name", decode.string)
+  use max_number <- decode.field("maxNumber", decode.int)
+  use chapters <- decode.field("chapters", decode.list(chapter_decoder()))
+  decode.success(Volume(id:, name:, max_number:, chapters:))
 }
 
 pub type Chapter {
@@ -45,12 +42,10 @@ pub type Chapter {
 }
 
 pub fn chapter_decoder() {
-  dynamic.decode3(
-    Chapter,
-    dynamic.field("id", dynamic.int),
-    dynamic.field("title", dynamic.string),
-    dynamic.field("sortOrder", dynamic.float),
-  )
+  use id <- decode.field("id", decode.int)
+  use title <- decode.field("title", decode.string)
+  use sort_order <- decode.field("sortOrder", decode.float)
+  decode.success(Chapter(id:, title:, sort_order:))
 }
 
 pub type Metadata {
@@ -73,21 +68,16 @@ pub type MinimalInfo {
 }
 
 pub fn minimal_decoder() {
-  dynamic.decode3(
-    MinimalInfo,
-    dynamic.field("id", dynamic.int),
-    dynamic.field("name", dynamic.string),
-    dynamic.field("localizedName", dynamic.string),
-  )
+  use id <- decode.field("id", decode.int)
+  use name <- decode.field("name", decode.string)
+  use localized_name <- decode.field("localizedName", decode.string)
+  decode.success(MinimalInfo(id:, name:, localized_name:))
 }
 
 pub fn recently_updated_decoder() {
-  dynamic.decode3(
-    MinimalInfo,
-    dynamic.field("seriesId", dynamic.int),
-    dynamic.field("seriesName", dynamic.string),
-    fn(_) { Ok("") },
-  )
+  use id <- decode.field("seriesId", decode.int)
+  use name <- decode.field("seriesName", decode.string)
+  decode.success(MinimalInfo(id:, name:, localized_name: ""))
 }
 
 pub type Publication {
