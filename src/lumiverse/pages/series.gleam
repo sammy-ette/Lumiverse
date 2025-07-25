@@ -1,8 +1,10 @@
+import gleam/bool
 import gleam/dict
+import gleam/float
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/option
-import gleam/string
 
 import lustre/attribute.{class}
 import lustre/element
@@ -52,15 +54,26 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                 <> user.api_key,
               )
 
-            html.div([class("max-w-64")], [
-              html.img([
-                class("bg-zinc-800 rounded object-cover min-w-48 min-h-80"),
-                attribute.src(cover_url),
-              ]),
+            html.img([
+              class(
+                "max-sm:self-center bg-zinc-800 rounded object-cover w-52 h-80",
+              ),
+              attribute.src(cover_url),
+              attribute.rel("preload"),
+              attribute.attribute("fetchpriority", "high"),
+              attribute.attribute("as", "image"),
+              attribute.alt("Cover image for " <> srs.localized_name),
             ])
           }
           option.None ->
-            html.div([class("bg-zinc-800 rounded animate-pulse h-80 w-48")], [])
+            html.div(
+              [
+                class(
+                  "max-sm:self-center bg-zinc-800 rounded animate-pulse w-52 h-80",
+                ),
+              ],
+              [],
+            )
         },
         html.div([attribute.class("flex flex-col gap-5")], [
           html.div([class("space-y-2")], case model.viewing_series {
@@ -75,7 +88,7 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                     ),
                   ],
                   [
-                    tag.single_custom("New!", "bg-red-500"),
+                    tag.single_custom("New!", "bg-rose-600"),
                     html.h1([class("text-xl sm:text-5xl")], [
                       element.text(srs.localized_name),
                     ]),
@@ -88,11 +101,11 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
               ]
             }
             option.None -> [
-              html.div([class("bg-zinc-800 animate-pulse h-12 w-96")], []),
+              html.div([class("bg-zinc-800 animate-pulse h-10 w-96")], []),
               html.div([class("bg-zinc-800 animate-pulse h-7 w-48")], []),
             ]
           }),
-          html.div([], [
+          html.div([attribute.class("flex flex-wrap gap-2")], [
             button(
               [
                 event.on_click(layout.Read(option.None)),
@@ -105,6 +118,29 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                 element.text("Start Reading"),
               ],
             ),
+            case model.viewing_series {
+              option.None -> element.none()
+              option.Some(serie) -> {
+                let assert Ok(srs) = serie
+                let assert Ok(metadata) = dict.get(model.metadatas, srs.id)
+                case metadata.publication_status != series.Completed {
+                  False -> element.none()
+                  True ->
+                    button(
+                      [
+                        event.on_click(layout.RequestSeriesUpdate(srs)),
+                        button.solid(button.Neutral),
+                        button.lg(),
+                        class("text-white font-semibold"),
+                      ],
+                      [
+                        html.span([attribute.class("icon-history")], []),
+                        element.text("Request Update"),
+                      ],
+                    )
+                }
+              }
+            },
           ]),
           case model.viewing_series {
             option.Some(serie) -> {
@@ -162,7 +198,7 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
               )
             }
             option.None ->
-              html.div([class("bg-zinc-800 animate-pulse w-80 h-4")], [])
+              html.div([class("bg-zinc-800 animate-pulse w-80 h-6")], [])
           },
         ]),
       ]),
@@ -176,31 +212,78 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
           html.div([attribute.class("space-y-4")], [
             html.p([], [element.text(metadata.summary)]),
             html.div([attribute.class("flex flex-col gap-4")], [
-              html.h2([attribute.class("font-bold text-3xl")], [
-                element.text("Chapters"),
-              ]),
-              html.div(
-                [attribute.class("flex flex-col gap-2 w-ful")],
-                list.map(
-                  list.sort(series_details.chapters, fn(chp_b, chp_a) {
-                    int.compare(chp_a.sort_order, chp_b.sort_order)
-                  }),
-                  fn(chp: series.Chapter) {
-                    button(
-                      [
-                        event.on_click(layout.Read(option.Some(chp.id))),
-                        button.solid(button.Neutral),
-                        button.lg(),
-                        class("text-white font-semibold"),
-                      ],
-                      [
-                        html.span([attribute.class("icon-book")], []),
-                        element.text(chp.title),
-                      ],
-                    )
-                  },
-                ),
-              ),
+              case list.is_empty(series_details.volumes) {
+                True -> element.none()
+                False ->
+                  html.div([attribute.class("space-y-4")], [
+                    html.h2([attribute.class("font-bold text-3xl")], [
+                      element.text("Volumes"),
+                    ]),
+                    html.div(
+                      [attribute.class("flex flex-col gap-2 w-full")],
+                      list.map(series_details.volumes, fn(vol: series.Volume) {
+                        button(
+                          [
+                            event.on_click(layout.Read(option.Some(vol.id))),
+                            button.solid(button.Neutral),
+                            button.lg(),
+                            class("text-white font-semibold"),
+                          ],
+                          [
+                            html.span([attribute.class("icon-book")], []),
+                            element.text(vol.name),
+                          ],
+                        )
+                      }),
+                    ),
+                  ])
+              },
+              {
+                let chapters_from_vols =
+                  list.map(series_details.volumes, fn(vol: series.Volume) {
+                    list.map(vol.chapters, fn(chp: series.Chapter) {
+                      #(chp.id, True)
+                    })
+                  })
+                  |> list.flatten
+                  |> dict.from_list
+                let filtered_chapters =
+                  list.filter(series_details.chapters, fn(chp: series.Chapter) {
+                    io.debug(dict.has_key(chapters_from_vols, chp.id))
+                    bool.negate(dict.has_key(chapters_from_vols, chp.id))
+                  })
+                case list.is_empty(filtered_chapters) {
+                  True -> element.none()
+                  False ->
+                    html.div([attribute.class("space-y-4")], [
+                      html.h2([attribute.class("font-bold text-3xl")], [
+                        element.text("Chapters"),
+                      ]),
+                      html.div(
+                        [attribute.class("flex flex-col gap-2 w-ful")],
+                        list.map(
+                          list.sort(filtered_chapters, fn(chp_b, chp_a) {
+                            float.compare(chp_a.sort_order, chp_b.sort_order)
+                          }),
+                          fn(chp: series.Chapter) {
+                            button(
+                              [
+                                event.on_click(layout.Read(option.Some(chp.id))),
+                                button.solid(button.Neutral),
+                                button.lg(),
+                                class("text-white font-semibold"),
+                              ],
+                              [
+                                html.span([attribute.class("icon-book")], []),
+                                element.text(chp.title),
+                              ],
+                            )
+                          },
+                        ),
+                      ),
+                    ])
+                }
+              },
             ]),
           ])
         }

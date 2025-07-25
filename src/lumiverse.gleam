@@ -747,6 +747,19 @@ fn update(
       )
     }
     layout.ChapterInfoRetrieved(Error(_)) -> todo as "handle chapter info error"
+    layout.RequestSeriesUpdate(serie) -> {
+      let assert option.Some(user) = model.user
+      #(model, series_req.request_update(serie, user.token, user.username))
+    }
+    layout.SeriesUpdateRequested(Ok(_)) -> {
+      io.debug("series update request sent successfully")
+      #(model, effect.none())
+    }
+    layout.SeriesUpdateRequested(Error(err)) -> {
+      io.debug("update request fail")
+      io.debug(err)
+      #(model, effect.none())
+    }
   }
 }
 

@@ -40,6 +40,14 @@ pub fn root_url() -> String {
   root_uri() |> uri.to_string
 }
 
+pub fn direct_lumify(rel: String) -> String {
+  let assert Ok(rel_url) = uri.parse("/lumify" <> rel)
+  let assert Ok(direction) = uri.merge(root_uri(), rel_url)
+  io.debug("call to redirect to lumify result: " <> direction |> uri.to_string)
+  io.debug(rel)
+  uri.to_string(direction)
+}
+
 pub fn direct(rel: String) -> String {
   let assert Ok(rel_url) = uri.parse(rel)
   let assert Ok(direction) = uri.merge(root_uri(), rel_url)

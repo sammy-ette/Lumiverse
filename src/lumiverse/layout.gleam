@@ -41,6 +41,10 @@ pub type Msg {
   SeriesRetrieved(Result(series.MinimalInfo, http.HttpError))
   SeriesMetadataRetrieved(Result(series.Metadata, http.HttpError))
 
+  // Series Page
+  RequestSeriesUpdate(series.MinimalInfo)
+  SeriesUpdateRequested(Result(Nil, http.HttpError))
+
   // Reader
   // if None, read from last chapter
   Read(option.Option(Int))
@@ -77,10 +81,14 @@ pub fn nav(model: model.Model) {
           html.a(
             [
               attribute.href("/"),
-              attribute.class("flex items-center space-x-3"),
+              attribute.class("flex items-center space-x-2"),
             ],
             [
-              html.img([attribute.src(config.logo()), attribute.class("h-12")]),
+              html.img([
+                attribute.src(config.logo()),
+                attribute.class("h-12 w-12"),
+                attribute.alt("Lumiverse logo"),
+              ]),
               html.span(
                 [
                   attribute.class(

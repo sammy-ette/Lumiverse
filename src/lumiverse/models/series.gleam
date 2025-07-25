@@ -15,18 +15,33 @@ pub type Manga {
 }
 
 pub type Details {
-  Details(chapters: List(Chapter))
+  Details(chapters: List(Chapter), volumes: List(Volume))
 }
 
 pub fn details_decoder() {
-  dynamic.decode1(
+  dynamic.decode2(
     Details,
+    dynamic.field("chapters", dynamic.list(chapter_decoder())),
+    dynamic.field("volumes", dynamic.list(volume_decoder())),
+  )
+}
+
+pub type Volume {
+  Volume(id: Int, name: String, max_number: Int, chapters: List(Chapter))
+}
+
+pub fn volume_decoder() {
+  dynamic.decode4(
+    Volume,
+    dynamic.field("id", dynamic.int),
+    dynamic.field("name", dynamic.string),
+    dynamic.field("maxNumber", dynamic.int),
     dynamic.field("chapters", dynamic.list(chapter_decoder())),
   )
 }
 
 pub type Chapter {
-  Chapter(id: Int, title: String, sort_order: Int)
+  Chapter(id: Int, title: String, sort_order: Float)
 }
 
 pub fn chapter_decoder() {
@@ -34,7 +49,7 @@ pub fn chapter_decoder() {
     Chapter,
     dynamic.field("id", dynamic.int),
     dynamic.field("title", dynamic.string),
-    dynamic.field("sortOrder", dynamic.int),
+    dynamic.field("sortOrder", dynamic.float),
   )
 }
 

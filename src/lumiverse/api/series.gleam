@@ -263,3 +263,30 @@ pub fn all(token: String, smart_filter: filter.SmartFilter) {
     ),
   )
 }
+
+pub fn request_update(
+  srs: series.MinimalInfo,
+  token: String,
+  user_requested: String,
+) {
+  let assert Ok(req) = request.to(router.direct_lumify("/api/update-request"))
+  let req =
+    req
+    |> request.set_method(http.Post)
+    |> request.set_body(
+      json.object([
+        #("name", json.string(srs.name)),
+        #("seriesId", json.int(srs.id)),
+        #("userThatRequested", json.string(user_requested)),
+      ])
+      |> json.to_string,
+    )
+    |> request.set_header("Authorization", "Bearer " <> token)
+    |> request.set_header("Accept", "application/json")
+    |> request.set_header("Content-Type", "application/json")
+
+  lustre_http.send(
+    req,
+    lustre_http.expect_anything(layout.SeriesUpdateRequested),
+  )
+}
