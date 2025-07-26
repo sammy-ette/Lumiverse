@@ -1,16 +1,16 @@
 import gleam/option
-import lustre/attribute.{attribute}
+import lustre/attribute
 import lustre/element
 import lustre/element/html
 
 import lustre_http as http
 
-import lumiverse/api/msg as api
 import lumiverse/components/button.{button}
 import lumiverse/config
 import lumiverse/model
 import lumiverse/models/auth
 import lumiverse/models/filter
+import lumiverse/models/library
 import lumiverse/models/reader
 import lumiverse/models/router
 import lumiverse/models/series
@@ -22,6 +22,7 @@ import lumiverse/models/stream
 pub type Msg {
   Router(router.Msg)
   HealthCheck(Result(Nil, http.HttpError))
+  FormSubmitted(id: String)
   SmartFilterDecode(Result(filter.SmartFilter, http.HttpError))
   //                           \/ represents whether its from dashboard call
   AllSeriesRetrieved(Result(#(Bool, model.SeriesList), http.HttpError))
@@ -46,6 +47,11 @@ pub type Msg {
   RequestSeriesUpdate(series.MinimalInfo)
   SeriesUpdateRequested(Result(Nil, http.HttpError))
   TagClicked(cross: Bool)
+
+  // Upload Page
+  LibrariesGot(Result(List(library.Library), http.HttpError))
+  UploadSuccess
+  UploadFail
 
   // Reader
   // if None, read from last chapter
@@ -112,8 +118,11 @@ pub fn nav(model: model.Model) {
           case model.guest, model.user {
             False, option.Some(user) ->
               html.div([attribute.class("flex")], [
-                button([button.md(), button.solid(button.Neutral)], [
-                  element.text("Upload"),
+                html.a([attribute.href("/upload")], [
+                  button([button.md(), button.solid(button.Neutral)], [
+                    html.span([attribute.class("icon-upload")], []),
+                    element.text("Upload"),
+                  ]),
                 ]),
                 button([button.md(), attribute.class("text-white")], [
                   element.text(user.username),

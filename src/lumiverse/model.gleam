@@ -4,6 +4,7 @@ import gleam/option
 import lustre_http as http
 
 import lumiverse/models/auth
+import lumiverse/models/library
 import lumiverse/models/reader
 import lumiverse/models/router
 import lumiverse/models/series
@@ -28,6 +29,8 @@ pub type Model {
     prev_chapter: option.Option(Int),
     next_chapter: option.Option(Int),
     chapter_info: option.Option(reader.ChapterInfo),
+    libraries: List(library.Library),
+    upload_result: option.Option(Result(Nil, Nil)),
   )
 }
 

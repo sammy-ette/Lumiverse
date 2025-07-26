@@ -1,13 +1,9 @@
 import gleam/dynamic
 import gleam/dynamic/decode
-import gleam/fetch
 import gleam/http
 import gleam/http/request
 import gleam/int
 import gleam/json
-import gleam/option
-
-import gleam/io
 
 import lustre_http
 

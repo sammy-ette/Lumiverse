@@ -12,6 +12,7 @@ import lustre/effect
 pub fn uri_to_route(uri: uri.Uri) -> router.Route {
   case uri.path {
     "/" -> router.Home
+    "/upload" -> router.Upload
     "/login" -> router.Login
     "/oidc/callback" -> router.OIDCCallback
     "/all" -> router.All
@@ -25,16 +26,24 @@ pub fn uri_to_route(uri: uri.Uri) -> router.Route {
   }
 }
 
-pub fn root_uri() -> uri.Uri {
+pub fn localhost() -> Bool {
   let route = get_route()
   case route.host, route.port {
     option.Some("localhost"), option.Some(1234)
     | option.Some("127.0.0.1"), option.Some(1234)
-    -> {
+    -> True
+    _, _ -> False
+  }
+}
+
+pub fn root_uri() -> uri.Uri {
+  let route = get_route()
+  case localhost() {
+    True -> {
       let assert Ok(local) = uri.parse(common.kavita_dev_api)
       local
     }
-    _, _ -> route
+    False -> route
   }
 }
 
@@ -43,8 +52,17 @@ pub fn root_url() -> String {
 }
 
 pub fn direct_lumify(rel: String) -> String {
-  let assert Ok(rel_url) = uri.parse("/lumify" <> rel)
-  let assert Ok(direction) = uri.merge(root_uri(), rel_url)
+  let assert Ok(direction) = case localhost() {
+    True -> {
+      let assert Ok(lumify_uri) = uri.parse(common.lumify_dev_api)
+      let assert Ok(rel_uri) = uri.parse(rel)
+      uri.merge(lumify_uri, rel_uri)
+    }
+    False -> {
+      let assert Ok(rel_url) = uri.parse("/lumify" <> rel)
+      uri.merge(root_uri(), rel_url)
+    }
+  }
   echo "call to redirect to lumify result: " <> direction |> uri.to_string
   echo rel
   uri.to_string(direction)

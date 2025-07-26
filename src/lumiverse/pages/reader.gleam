@@ -1,25 +1,15 @@
-import gleam/bool
-import gleam/dict
-import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/int
-import gleam/io
 import gleam/list
 import gleam/option
-import gleam/result
-import gleam/string
 
 import lustre/attribute
 import lustre/element
 import lustre/element/html
 import lustre/event
 
-import lumiverse/elements/chapter
-import lumiverse/elements/tag
 import lumiverse/layout
 import lumiverse/model
-import lumiverse/models/series
-import lumiverse/pages/not_found
 import router
 
 pub fn page(model: model.Model) -> element.Element(layout.Msg) {
@@ -77,7 +67,7 @@ pub fn page(model: model.Model) -> element.Element(layout.Msg) {
                   model.continue_point,
                   model.chapter_info
                 {
-                  option.Some(serie), option.Some(cont_point), option.Some(inf) -> {
+                  option.Some(_), option.Some(_), option.Some(inf) -> {
                     [
                       html.span(
                         [attribute.class("bg-zinc-900 rounded py-0.5 px-1")],

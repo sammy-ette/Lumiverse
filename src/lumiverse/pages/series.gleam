@@ -2,7 +2,6 @@ import gleam/bool
 import gleam/dict
 import gleam/float
 import gleam/int
-import gleam/io
 import gleam/list
 import gleam/option
 
@@ -11,7 +10,6 @@ import lustre/element
 import lustre/element/html
 import lustre/event
 
-import lumiverse/elements/chapter
 import lumiverse/elements/tag
 import lumiverse/layout
 import lumiverse/model

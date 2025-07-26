@@ -1,13 +1,15 @@
+import form
 import gleam/bool
 import gleam/dict
 import gleam/int
 import gleam/io
-import gleam/javascript/promise
 import gleam/list
 import gleam/option
 import gleam/order
-import gleam/result
+import gleam/string
 import gleam/uri
+import lumiverse/api/library
+import lumiverse/pages/upload
 import lustre
 import lustre/attribute
 import lustre/effect.{type Effect}
@@ -25,7 +27,6 @@ import router as router_handler
 import lumiverse/config
 
 import lumiverse/api/api
-import lumiverse/api/msg as api_msg
 import lumiverse/api/reader
 import lumiverse/api/series as series_req
 import lumiverse/layout
@@ -102,6 +103,8 @@ fn init(_) {
       prev_chapter: option.None,
       next_chapter: option.None,
       chapter_info: option.None,
+      libraries: [],
+      upload_result: option.None,
     )
 
   echo model.guest
@@ -128,7 +131,7 @@ fn homepage_display(user: option.Option(auth_model.User)) -> Effect(layout.Msg) 
 }
 
 fn route_effect(model: model.Model, route: router.Route) -> Effect(layout.Msg) {
-  let eff = case route {
+  case route {
     router.Home ->
       case model.user == option.None && model.guest == False {
         True -> router_handler.change_route("/login")
@@ -168,6 +171,11 @@ fn route_effect(model: model.Model, route: router.Route) -> Effect(layout.Msg) {
       case model.user {
         option.None -> todo as "handle being in reader while not logged in"
         option.Some(user) -> reader.get_progress(user.token, id)
+      }
+    router.Upload ->
+      case model.user {
+        option.None -> todo as "handle trying to upload when not logged in"
+        option.Some(user) -> library.libraries(user.token)
       }
     _ -> effect.none()
   }
@@ -783,6 +791,52 @@ fn update(
       echo err
       #(model, effect.none())
     }
+    layout.LibrariesGot(Ok(libraries)) -> #(
+      model.Model(..model, libraries:),
+      effect.none(),
+    )
+    layout.LibrariesGot(Error(e)) -> {
+      echo e
+      todo as "handle library fail"
+    }
+    layout.FormSubmitted(element_id) -> {
+      echo element_id
+      let assert option.Some(user) = model.user
+
+      case string.is_empty(element_id) {
+        True ->
+          panic as "there a form with a missing id that has layout.FormSubmitted"
+        False -> Nil
+      }
+
+      #(
+        model.Model(..model, upload_result: option.None),
+        form.submit(
+          element_id,
+          [["Authorization", "Bearer " <> user.token]],
+          fn(res) {
+            case res {
+              Ok(Nil) -> {
+                echo "form submitted"
+                layout.UploadSuccess
+              }
+              Error(Nil) -> {
+                echo "form submit fail"
+                layout.UploadFail
+              }
+            }
+          },
+        ),
+      )
+    }
+    layout.UploadSuccess -> #(
+      model.Model(..model, upload_result: option.Some(Ok(Nil))),
+      effect.none(),
+    )
+    layout.UploadFail -> #(
+      model.Model(..model, upload_result: option.Some(Error(Nil))),
+      effect.none(),
+    )
   }
 }
 
@@ -795,17 +849,22 @@ fn view(model: model.Model) -> Element(layout.Msg) {
         router.OIDCCallback -> auth.oidc_callback()
         router.Logout -> auth.logout()
         router.All -> all_page.page(model)
-        router.Series(id) -> series_page.page(model)
-        router.Reader(id) -> reader_page.page(model)
+        router.Series(_) -> series_page.page(model)
+        router.Reader(_) -> reader_page.page(model)
+        router.Upload -> upload.page(model)
         router.NotFound -> not_found.page()
       }
 
-      let supposed_to_serve = case model.route {
+      case model.route {
         router.Login -> page
         router.Logout -> page
         router.NotFound -> page
         router.OIDCCallback -> page
-        _ -> html.div([], [layout.nav(model), page])
+        _ ->
+          html.div([attribute.class("flex flex-col h-screen")], [
+            layout.nav(model),
+            page,
+          ])
       }
     }
     option.Some(True) -> api_down.page()

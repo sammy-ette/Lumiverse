@@ -8,6 +8,7 @@ pub type Route {
   NotFound
   Logout
   Reader(chapter_id: Int)
+  Upload
 }
 
 // Update Function with Routing

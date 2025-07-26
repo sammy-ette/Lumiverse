@@ -90,7 +90,8 @@ fn carousel_item(
       <> "&apiKey="
       <> user.api_key,
     )
-  let assert Ok(metadata) = dict.get(model.metadatas, srs.id)
+  let assert Ok(metadata): Result(series_model.Metadata, Nil) =
+    dict.get(model.metadatas, srs.id)
 
   html.div([attribute.class("carousel-item" <> active_string)], [
     html.a(
