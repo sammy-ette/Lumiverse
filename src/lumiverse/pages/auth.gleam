@@ -112,6 +112,7 @@ pub fn login(model: model.Model) {
                   True -> [
                     html.span(
                       [
+                        attribute.disabled(True),
                         attribute.class(
                           "text-neutral-400 icon-circle-o-notch animate-spin",
                         ),
