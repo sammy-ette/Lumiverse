@@ -860,11 +860,12 @@ fn view(model: model.Model) -> Element(layout.Msg) {
         router.Logout -> page
         router.NotFound -> page
         router.OIDCCallback -> page
-        _ ->
+        router.Upload ->
           html.div([attribute.class("flex flex-col h-screen")], [
             layout.nav(model),
             page,
           ])
+        _ -> html.div([], [layout.nav(model), page])
       }
     }
     option.Some(True) -> api_down.page()
