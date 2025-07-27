@@ -1,11 +1,10 @@
-FROM node:22-alpine3.22 as build-step
+FROM erlang:alpine as build-step
 RUN mkdir -p /app
-RUN npm cache clear --force
+RUN apk add npm
+COPY --from=ghcr.io/gleam-lang/gleam:v1.11.0-erlang-alpine /bin/gleam /bin/gleam
 WORKDIR /app
 COPY package.json /app
 RUN npm install
-RUN echo "@community http://dl-cdn.alpinelinux.org/alpine/v3.22/community" >> /etc/apk/repositories
-RUN apk add --update gleam rebar3
 COPY . /app
 RUN gleam run -m lustre/dev build --minify
 
