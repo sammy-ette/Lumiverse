@@ -20,9 +20,9 @@ pub type Model {
     doing_oidc: Bool,
     home: HomeModel,
     metadatas: dict.Dict(Int, series.Metadata),
-    series: dict.Dict(Int, series.MinimalInfo),
+    series: dict.Dict(Int, series.Info),
     series_details: dict.Dict(Int, series.Details),
-    viewing_series: option.Option(Result(series.MinimalInfo, http.HttpError)),
+    viewing_series: option.Option(Result(series.Info, http.HttpError)),
     reader_progress: option.Option(reader.Progress),
     reader_image_loaded: Bool,
     continue_point: option.Option(reader.ContinuePoint),
@@ -30,6 +30,7 @@ pub type Model {
     next_chapter: option.Option(Int),
     chapter_info: option.Option(reader.ChapterInfo),
     libraries: List(library.Library),
+    uploading: Bool,
     upload_result: option.Option(Result(Nil, Nil)),
   )
 }

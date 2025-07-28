@@ -1,5 +1,6 @@
 import gleam/bool
 import gleam/list
+import gleam/option
 import gleam/string
 import lustre/event
 
@@ -8,16 +9,19 @@ import lustre/element
 import lustre/element/html
 
 import lumiverse/layout
+import lumiverse/models/auth
 import tag_criteria
 
-pub fn list(tags: List(String)) -> element.Element(layout.Msg) {
+pub fn list(user: auth.User, tags: List(String)) -> element.Element(layout.Msg) {
   html.div(
     [attribute.class("flex flex-wrap gap-2")],
-    list.map(tags, fn(t: String) -> element.Element(layout.Msg) { single(t) }),
+    list.map(tags, fn(t: String) -> element.Element(layout.Msg) {
+      single(user, t)
+    }),
   )
 }
 
-pub fn single(tag: String) -> element.Element(layout.Msg) {
+pub fn single(user: auth.User, tag: String) -> element.Element(layout.Msg) {
   html.div(
     [
       attribute.class(
@@ -43,14 +47,29 @@ pub fn single(tag: String) -> element.Element(layout.Msg) {
     [
       html.span(
         [
-          attribute.class("group-hover:opacity-0"),
+          case
+            option.unwrap(user.roles, [])
+            |> list.contains(auth.Admin)
+            |> bool.negate
+          {
+            True -> attribute.class("group-hover:opacity-0")
+            False -> attribute.none()
+          },
           event.on_click(layout.TagClicked(cross: False)),
         ],
         [element.text(tag)],
       ),
       html.span(
         [
-          attribute.class("icon-cross absolute hidden group-hover:block"),
+          case
+            option.unwrap(user.roles, [])
+            |> list.contains(auth.Admin)
+            |> bool.negate
+          {
+            True -> attribute.class("group-hover:block")
+            False -> attribute.none()
+          },
+          attribute.class("icon-cross absolute hidden"),
           event.on_click(layout.TagClicked(cross: True)),
         ],
         [],
@@ -67,10 +86,11 @@ pub fn single_custom(tag: String, color: String) -> element.Element(layout.Msg) 
 }
 
 pub fn list_title(
+  user: auth.User,
   title: String,
   badges: List(String),
 ) -> element.Element(layout.Msg) {
-  html.div([], [html.h3([], [element.text(title)]), list(badges)])
+  html.div([], [html.h3([], [element.text(title)]), list(user, badges)])
 }
 
 pub fn badge(name: String) -> element.Element(layout.Msg) {

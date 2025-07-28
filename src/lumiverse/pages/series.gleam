@@ -4,12 +4,15 @@ import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option
+import gleam/result
+import plinth/javascript/date
 
 import lustre/attribute.{class}
 import lustre/element
 import lustre/element/html
 import lustre/event
 
+import date as date_int
 import lumiverse/elements/tag
 import lumiverse/layout
 import lumiverse/model
@@ -31,8 +34,7 @@ pub fn page(model: model.Model) -> element.Element(layout.Msg) {
   }
 }
 
-fn real_page(model: model.Model) -> element.Element(layout.Msg) {
-  let assert option.Some(user) = model.user
+fn placeholder_page() {
   html.div(
     [
       class(
@@ -41,17 +43,99 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
     ],
     [
       html.div([class("flex flex-col sm:flex-row md:flex-row gap-4")], [
-        case model.viewing_series {
-          option.Some(serie) -> {
-            let assert Ok(srs) = serie
-            let cover_url =
-              router.direct(
-                "/api/image/series-cover?seriesId="
-                <> int.to_string(srs.id)
-                <> "&apiKey="
-                <> user.api_key,
-              )
+        html.div(
+          [
+            class(
+              "max-sm:self-center bg-zinc-800 rounded animate-pulse w-52 h-80",
+            ),
+          ],
+          [],
+        ),
+        html.div([attribute.class("flex flex-col gap-5")], [
+          html.div([attribute.class("space-y-2")], [
+            // title (localized)
+            html.div(
+              [
+                attribute.class(
+                  "mt-2 mb-3 bg-zinc-800 animate-pulse h-10 w-120",
+                ),
+              ],
+              [],
+            ),
+            // title (original)
+            html.div(
+              [attribute.class("bg-zinc-800 animate-pulse h-6 w-48")],
+              [],
+            ),
+          ]),
+          html.div([attribute.class("flex flex-wrap gap-2")], [
+            button(
+              [
+                button.solid(button.Primary),
+                button.lg(),
+                class("w-47.5 h-12"),
+                attribute.disabled(True),
+              ],
+              [
+                html.span(
+                  [
+                    attribute.class(
+                      "text-neutral-200 icon-circle-o-notch animate-spin",
+                    ),
+                  ],
+                  [],
+                ),
+              ],
+            ),
+          ]),
+          html.div([attribute.class("bg-zinc-800 animate-pulse w-80 h-4")], []),
+        ]),
+      ]),
+      html.div([attribute.class("h-52 flex items-center justify-center")], [
+        html.span(
+          [attribute.class("text-neutral-200 icon-circle-o-notch animate-spin")],
+          [],
+        ),
+      ]),
+    ],
+  )
+}
 
+fn real_page(model: model.Model) -> element.Element(layout.Msg) {
+  let assert option.Some(user) = model.user
+  let res = {
+    use viewing_series <- result.try(option.to_result(
+      model.viewing_series,
+      placeholder_page(),
+    ))
+    let assert Ok(srs) = viewing_series
+    use metadata <- result.try(result.replace_error(
+      dict.get(model.metadatas, srs.id),
+      placeholder_page(),
+    ))
+    use details <- result.try(result.replace_error(
+      dict.get(model.series_details, srs.id),
+      placeholder_page(),
+    ))
+
+    let cover_url =
+      router.direct(
+        "/api/image/series-cover?seriesId="
+        <> int.to_string(srs.id)
+        <> "&apiKey="
+        <> user.api_key,
+      )
+    let new_time_range = date.get_time(date.now()) - 3 * { 24 * 60 * 60 * 1000 }
+
+    Ok(
+      html.div(
+        [
+          class(
+            "font-['Poppins'] max-w-screen-xl items-center justify-between mx-auto mb-8 p-4 space-y-4",
+          ),
+        ],
+        [
+          html.div([class("flex flex-col sm:flex-row md:flex-row gap-4")], [
             html.img([
               class(
                 "max-sm:self-center bg-zinc-800 rounded object-cover w-52 h-80",
@@ -61,32 +145,20 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
               attribute.attribute("fetchpriority", "high"),
               attribute.attribute("as", "image"),
               attribute.alt("Cover image for " <> srs.localized_name),
-            ])
-          }
-          option.None ->
-            html.div(
-              [
-                class(
-                  "max-sm:self-center bg-zinc-800 rounded animate-pulse w-52 h-80",
-                ),
-              ],
-              [],
-            )
-        },
-        html.div([attribute.class("flex flex-col gap-5")], [
-          html.div([class("space-y-2")], case model.viewing_series {
-            option.Some(serie) -> {
-              let assert Ok(srs) = serie
-
-              [
+            ]),
+            html.div([attribute.class("flex flex-col gap-5")], [
+              html.div([attribute.class("space-y-2")], [
                 html.span(
                   [
                     attribute.class(
-                      "flex flex-wrap gap-2 font-['Poppins'] font-extrabold",
+                      "flex flex-nowrap gap-2 font-['Poppins'] font-extrabold",
                     ),
                   ],
                   [
-                    tag.single_custom("New!", "bg-rose-600"),
+                    case srs.created |> date.get_time() > new_time_range {
+                      True -> tag.single_custom("New!", "bg-rose-600")
+                      False -> element.none()
+                    },
                     html.h1([class("text-xl sm:text-5xl")], [
                       element.text(srs.localized_name),
                     ]),
@@ -96,31 +168,23 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                   [class("font-medium sm:font-semibold text-lg sm:text-xl")],
                   [element.text(srs.name)],
                 ),
-              ]
-            }
-            option.None -> [
-              html.div([class("bg-zinc-800 animate-pulse h-10 w-96")], []),
-              html.div([class("bg-zinc-800 animate-pulse h-7 w-48")], []),
-            ]
-          }),
-          html.div([attribute.class("flex flex-wrap gap-2")], [
-            button(
-              [
-                event.on_click(layout.Read(option.None)),
-                button.solid(button.Primary),
-                button.lg(),
-                class("text-white font-semibold"),
-              ],
-              [
-                html.span([attribute.class("icon-book")], []),
-                element.text("Start Reading"),
-              ],
-            ),
-            case model.viewing_series {
-              option.None -> element.none()
-              option.Some(serie) -> {
-                let assert Ok(srs) = serie
-                let assert Ok(metadata) = dict.get(model.metadatas, srs.id)
+              ]),
+              html.div([attribute.class("flex flex-wrap gap-2")], [
+                button(
+                  [
+                    event.on_click(layout.Read(option.None)),
+                    button.solid(button.Primary),
+                    button.lg(),
+                    class("text-white font-semibold"),
+                  ],
+                  [
+                    html.span([attribute.class("icon-book")], []),
+                    element.text(case srs.pages_read {
+                      0 -> "Start Reading"
+                      _ -> "Continue Reading"
+                    }),
+                  ],
+                ),
                 case metadata.publication_status != series.Completed {
                   False -> element.none()
                   True ->
@@ -136,15 +200,8 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                         element.text("Request Update"),
                       ],
                     )
-                }
-              }
-            },
-          ]),
-          case model.viewing_series {
-            option.Some(serie) -> {
-              let assert Ok(srs) = serie
-              let assert Ok(metadata) = dict.get(model.metadatas, srs.id)
-
+                },
+              ]),
               html.div(
                 [
                   class(
@@ -158,9 +215,12 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                         list.map(metadata.tags, fn(t) { t.title }),
                         list.map(metadata.genres, fn(t) { t.title }),
                       )
+                    let assert option.Some(user) = model.user
                     case list.length(tags) {
                       0 -> []
-                      _ -> [tag.list(list.sort(tags, tag_criteria.compare))]
+                      _ -> [
+                        tag.list(user, list.sort(tags, tag_criteria.compare)),
+                      ]
                     }
                   },
                   [
@@ -193,24 +253,13 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                     ]),
                   ],
                 ),
-              )
-            }
-            option.None ->
-              html.div([class("bg-zinc-800 animate-pulse w-80 h-6")], [])
-          },
-        ]),
-      ]),
-      case model.viewing_series {
-        option.None -> html.div([], [])
-        option.Some(serie) -> {
-          let assert Ok(srs) = serie
-          let assert Ok(metadata) = dict.get(model.metadatas, srs.id)
-          let assert Ok(series_details) = dict.get(model.series_details, srs.id)
-
+              ),
+            ]),
+          ]),
           html.div([attribute.class("space-y-4")], [
             html.p([], [element.text(metadata.summary)]),
             html.div([attribute.class("flex flex-col gap-4")], [
-              case list.is_empty(series_details.volumes) {
+              case list.is_empty(details.volumes) {
                 True -> element.none()
                 False ->
                   html.div([attribute.class("space-y-4")], [
@@ -219,7 +268,7 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                     ]),
                     html.div(
                       [attribute.class("flex flex-col gap-2 w-full")],
-                      list.map(series_details.volumes, fn(vol: series.Volume) {
+                      list.map(details.volumes, fn(vol: series.Volume) {
                         button(
                           [
                             event.on_click(layout.Read(option.Some(vol.id))),
@@ -238,7 +287,7 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
               },
               {
                 let chapters_from_vols =
-                  list.map(series_details.volumes, fn(vol: series.Volume) {
+                  list.map(details.volumes, fn(vol: series.Volume) {
                     list.map(vol.chapters, fn(chp: series.Chapter) {
                       #(chp.id, True)
                     })
@@ -246,10 +295,12 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                   |> list.flatten
                   |> dict.from_list
                 let filtered_chapters =
-                  list.filter(series_details.chapters, fn(chp: series.Chapter) {
-                    echo dict.has_key(chapters_from_vols, chp.id)
-                    bool.negate(dict.has_key(chapters_from_vols, chp.id))
-                  })
+                  list.filter(
+                    list.append(details.chapters, details.specials),
+                    fn(chp: series.Chapter) {
+                      bool.negate(dict.has_key(chapters_from_vols, chp.id))
+                    },
+                  )
                 case list.is_empty(filtered_chapters) {
                   True -> element.none()
                   False ->
@@ -264,18 +315,56 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                             float.compare(chp_a.sort_order, chp_b.sort_order)
                           }),
                           fn(chp: series.Chapter) {
-                            button(
-                              [
-                                event.on_click(layout.Read(option.Some(chp.id))),
-                                button.solid(button.Neutral),
-                                button.lg(),
-                                class("text-white font-semibold"),
-                              ],
-                              [
-                                html.span([attribute.class("icon-book")], []),
-                                element.text(chp.title),
-                              ],
-                            )
+                            html.div([attribute.class("w-full group")], [
+                              button(
+                                [
+                                  event.on_click(
+                                    layout.Read(option.Some(chp.id)),
+                                  ),
+                                  button.solid(button.Neutral),
+                                  button.lg(),
+                                  class(
+                                    "group-hover:bg-zinc-700/60 w-full rounded-b-none text-white font-semibold",
+                                  ),
+                                ],
+                                [
+                                  html.span([attribute.class("icon-book")], []),
+                                  element.text(chp.title),
+                                ],
+                              ),
+                              html.div(
+                                [
+                                  case chp.pages_read {
+                                    0 ->
+                                      attribute.class(
+                                        "group-hover:bg-zinc-700/60 bg-zinc-700",
+                                      )
+                                    _ -> attribute.class("bg-zinc-800")
+                                  },
+                                  attribute.class("w-full rounded-b-md h-1"),
+                                ],
+                                [
+                                  html.div(
+                                    [
+                                      case chp.pages_read == chp.pages {
+                                        False ->
+                                          attribute.class("rounded-bl-md")
+                                        True -> attribute.class("rounded-b-lg")
+                                      },
+                                      attribute.class("bg-violet-500 h-1"),
+                                      attribute.style(
+                                        "width",
+                                        int.to_string(
+                                          chp.pages / chp.pages_read,
+                                        )
+                                          <> "%",
+                                      ),
+                                    ],
+                                    [],
+                                  ),
+                                ],
+                              ),
+                            ])
                           },
                         ),
                       ),
@@ -283,9 +372,11 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                 }
               },
             ]),
-          ])
-        }
-      },
-    ],
-  )
+          ]),
+        ],
+      ),
+    )
+  }
+
+  result.unwrap_both(res)
 }

@@ -109,11 +109,32 @@ pub fn page(model: model.Model) -> element.Element(layout.Msg) {
               button.solid(button.Neutral),
             ]),
           ]),
-          html.input([
-            attribute.type_("submit"),
-            button.lg(),
-            button.solid(button.Primary),
-          ]),
+          button.button(
+            [
+              case model.uploading {
+                True -> attribute.disabled(True)
+                False -> attribute.none()
+              },
+              attribute.type_("submit"),
+              button.lg(),
+              button.solid(button.Primary),
+            ],
+            [
+              case model.uploading {
+                True ->
+                  html.span(
+                    [
+                      attribute.disabled(True),
+                      attribute.class(
+                        "text-neutral-400 icon-circle-o-notch animate-spin",
+                      ),
+                    ],
+                    [],
+                  )
+                False -> element.text("Upload")
+              },
+            ],
+          ),
         ],
       ),
     ],

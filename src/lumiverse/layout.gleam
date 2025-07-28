@@ -40,11 +40,11 @@ pub type Msg {
   //Home
   DashboardRetrieved(Result(List(stream.DashboardItem), http.HttpError))
   DashboardItemRetrieved(Result(model.SeriesList, http.HttpError))
-  SeriesRetrieved(Result(series.MinimalInfo, http.HttpError))
+  SeriesRetrieved(Result(series.Info, http.HttpError))
   SeriesMetadataRetrieved(Result(series.Metadata, http.HttpError))
 
   // Series Page
-  RequestSeriesUpdate(series.MinimalInfo)
+  RequestSeriesUpdate(series.Info)
   SeriesUpdateRequested(Result(Nil, http.HttpError))
   TagClicked(cross: Bool)
 
@@ -71,7 +71,7 @@ pub fn nav(model: model.Model) {
   html.nav(
     [
       attribute.class(
-        "bg-zinc-950/85 backdrop-blur-xl"
+        "z-20 bg-zinc-950/85 backdrop-blur-xl"
         <> case model.route {
           router.Reader(_) -> ""
           _ -> " sticky top-0 left-0 right-0"

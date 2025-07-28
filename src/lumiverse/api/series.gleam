@@ -178,7 +178,7 @@ pub fn series(series_id: Int, token: String) {
 
   lustre_http.send(
     req,
-    lustre_http.expect_json(series.minimal_decoder(), layout.SeriesRetrieved),
+    lustre_http.expect_json(series.info_decoder(), layout.SeriesRetrieved),
   )
 }
 
@@ -224,7 +224,8 @@ pub fn series_details(series_id: Int, token: String) {
           Ok(details) -> {
             Ok(#(series_id, details))
           }
-          Error(_) -> Error(#(0, series.Details(chapters: [], volumes: [])))
+          Error(_) ->
+            Error(#(0, series.Details(chapters: [], volumes: [], specials: [])))
         }
       }),
       layout.SeriesDetailsRetrieved,
@@ -269,11 +270,7 @@ pub fn all(token: String, smart_filter: filter.SmartFilter) {
   )
 }
 
-pub fn request_update(
-  srs: series.MinimalInfo,
-  token: String,
-  user_requested: String,
-) {
+pub fn request_update(srs: series.Info, token: String, user_requested: String) {
   let assert Ok(req) = request.to(router.direct_lumify("/api/update-request"))
   let req =
     req

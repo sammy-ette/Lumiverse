@@ -104,6 +104,7 @@ fn init(_) {
       next_chapter: option.None,
       chapter_info: option.None,
       libraries: [],
+      uploading: False,
       upload_result: option.None,
     )
 
@@ -313,13 +314,13 @@ fn update(
             list.map(series.items, fn(s: series_model.MinimalInfo) {
               series_req.metadata(s.id, user.token)
             })
-          let new_series =
-            dict.from_list(
-              list.map(series.items, fn(s: series_model.MinimalInfo) {
-                #(s.id, s)
-              }),
-            )
-            |> dict.merge(model.series)
+          // let new_series =
+          //   dict.from_list(
+          //     list.map(series.items, fn(s: series_model.MinimalInfo) {
+          //       #(s.id, s)
+          //     }),
+          //   )
+          //   |> dict.merge(model.series)
           #(
             model.Model(
               ..model,
@@ -345,7 +346,7 @@ fn update(
                 },
                 carousel_smalldata: series.items,
               ),
-              series: new_series,
+              // series: new_series,
             ),
             effect.batch(metadata_fetchers),
           )
@@ -810,7 +811,7 @@ fn update(
       }
 
       #(
-        model.Model(..model, upload_result: option.None),
+        model.Model(..model, upload_result: option.None, uploading: True),
         form.submit(
           element_id,
           [["Authorization", "Bearer " <> user.token]],
@@ -830,11 +831,19 @@ fn update(
       )
     }
     layout.UploadSuccess -> #(
-      model.Model(..model, upload_result: option.Some(Ok(Nil))),
+      model.Model(
+        ..model,
+        uploading: False,
+        upload_result: option.Some(Ok(Nil)),
+      ),
       effect.none(),
     )
     layout.UploadFail -> #(
-      model.Model(..model, upload_result: option.Some(Error(Nil))),
+      model.Model(
+        ..model,
+        uploading: False,
+        upload_result: option.Some(Error(Nil)),
+      ),
       effect.none(),
     )
   }

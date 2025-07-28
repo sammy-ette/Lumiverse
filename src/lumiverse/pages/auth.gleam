@@ -94,10 +94,11 @@ pub fn login(model: model.Model) {
             False ->
               button(
                 [
+                  event.on_click(layout.AuthPage(auth.OIDCSubmitted)),
                   button.solid(button.Neutral),
                   button.md(),
                   attribute.class("w-full font-semibold"),
-                  event.on_click(layout.AuthPage(auth.OIDCSubmitted)),
+                  attribute.disabled(True),
                 ],
                 case model.doing_oidc {
                   False -> [
@@ -112,7 +113,6 @@ pub fn login(model: model.Model) {
                   True -> [
                     html.span(
                       [
-                        attribute.disabled(True),
                         attribute.class(
                           "text-neutral-400 icon-circle-o-notch animate-spin",
                         ),
