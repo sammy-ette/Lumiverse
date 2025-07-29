@@ -9,6 +9,7 @@ import gleam/order
 import gleam/string
 import gleam/uri
 import lumiverse/api/library
+import lumiverse/pages/error
 import lumiverse/pages/upload
 import lustre
 import lustre/attribute
@@ -108,8 +109,6 @@ fn init(_) {
       upload_result: option.None,
     )
 
-  echo model.guest
-
   #(model, effect.batch([modem.init(on_url_change), api.health()]))
 }
 
@@ -131,19 +130,25 @@ fn homepage_display(user: option.Option(auth_model.User)) -> Effect(layout.Msg) 
   }
 }
 
+fn redirect_login() {
+  let assert Ok(login) = uri.parse("/login")
+  modem.load(login)
+}
+
 fn route_effect(model: model.Model, route: router.Route) -> Effect(layout.Msg) {
   case route {
     router.Home ->
       case model.user == option.None && model.guest == False {
-        True -> router_handler.change_route("/login")
+        True -> redirect_login()
         False -> homepage_display(model.user)
       }
     router.OIDCCallback -> {
-      oidc.callback(model.oidc_config.authority, model.oidc_config.client_id)
+      let _ =
+        oidc.callback(model.oidc_config.authority, model.oidc_config.client_id)
       effect.none()
     }
     router.Logout -> {
-      localstorage.remove("kavita_user")
+      let _ = localstorage.remove("kavita_user")
       let assert Ok(home) = uri.parse("/")
       modem.load(home)
     }
@@ -170,12 +175,12 @@ fn route_effect(model: model.Model, route: router.Route) -> Effect(layout.Msg) {
       }
     router.Reader(id) ->
       case model.user {
-        option.None -> todo as "handle being in reader while not logged in"
+        option.None -> redirect_login()
         option.Some(user) -> reader.get_progress(user.token, id)
       }
     router.Upload ->
       case model.user {
-        option.None -> todo as "handle trying to upload when not logged in"
+        option.None -> redirect_login()
         option.Some(user) -> library.libraries(user.token)
       }
     _ -> effect.none()
@@ -195,6 +200,15 @@ fn scroll_reader() {
     Ok(reader_elem) -> plinth_element.scroll_into_view(reader_elem)
     Error(_) -> Nil
   }
+}
+
+fn error_effect(e: http.HttpError) {
+  effect.from(fn(dispatch) {
+    router.ErrorPage(e)
+    |> router.ChangeRoute
+    |> layout.Router
+    |> dispatch
+  })
 }
 
 fn update(
@@ -305,7 +319,7 @@ fn update(
     }
     layout.DashboardRetrieved(Error(e)) -> {
       echo e
-      todo as "handle dashboard retrieve failure"
+      #(model, error_effect(e))
     }
     layout.DashboardItemRetrieved(Ok(series)) -> {
       case model.user {
@@ -365,7 +379,7 @@ fn update(
     }
     layout.SmartFilterDecode(Error(e)) -> {
       echo e
-      todo as "smart filter failed :("
+      #(model, error_effect(e))
     }
     layout.AllSeriesRetrieved(Ok(all_serie)) -> {
       // if its a dashboard item
@@ -388,7 +402,7 @@ fn update(
         False -> #(model, effect.none())
       }
     }
-    layout.AllSeriesRetrieved(Error(_)) -> todo as "handle all series fail"
+    layout.AllSeriesRetrieved(Error(e)) -> #(model, error_effect(e))
     layout.SeriesRetrieved(maybe_serie) -> {
       let series_store = case maybe_serie {
         Ok(serie) -> model.series |> dict.insert(serie.id, serie)
@@ -525,29 +539,28 @@ fn update(
       )
     }
     layout.LoginGot(Error(e)) -> {
-      io.println("this is sad")
+      let set_auth_message = fn(msg) {
+        effect.from(fn(dispatch) {
+          msg
+          |> auth_model.AuthMessage
+          |> layout.AuthPage
+          |> dispatch
+        })
+      }
       let eff = case e {
         http.Unauthorized -> {
-          io.println("not authorized??")
-          effect.from(fn(dispatch) {
-            "Incorrect username or password"
-            |> auth_model.AuthMessage
-            |> layout.AuthPage
-            |> dispatch
-          })
+          set_auth_message("Incorrect username or password")
         }
         http.InternalServerError(err) -> {
           echo err
-          effect.from(fn(dispatch) {
-            "SSO signin failure"
-            |> auth_model.AuthMessage
-            |> layout.AuthPage
-            |> dispatch
-          })
+          set_auth_message("SSO sign in failure")
+        }
+        http.NetworkError -> {
+          set_auth_message("You're offline. Connect to the internet.")
         }
         e -> {
           echo e
-          todo as "handle login error not being unauthorized"
+          set_auth_message("(｡>﹏<) unknown error, please report.")
         }
       }
 
@@ -572,12 +585,12 @@ fn update(
     layout.RefreshGot(Error(e)) -> {
       let eff = case e {
         http.Unauthorized -> {
-          localstorage.remove("kavita_user")
-          router_handler.change_route("/login")
+          let _ = localstorage.remove("kavita_user")
+          redirect_login()
         }
         _ -> {
           echo e
-          todo as "handle refresh error being something other than unauthorized"
+          effect.none()
         }
       }
       #(model, eff)
@@ -622,8 +635,7 @@ fn update(
             }
           }
         }
-        option.None ->
-          todo as "decide what should be done if read is used while not logged in"
+        option.None -> #(model, redirect_login())
       }
     }
     layout.ReaderImageLoaded(_) -> {
@@ -687,8 +699,7 @@ fn update(
       }),
       effect.none(),
     )
-    layout.PreviousChapterRetrieved(Error(_)) ->
-      todo as "handle prev chapter fail"
+    layout.PreviousChapterRetrieved(Error(e)) -> #(model, error_effect(e))
     layout.NextChapterRetrieved(Ok(next)) -> #(
       model.Model(..model, next_chapter: case next {
         -1 -> option.None
@@ -696,7 +707,7 @@ fn update(
       }),
       effect.none(),
     )
-    layout.NextChapterRetrieved(Error(_)) -> todo as "handle next chapter fail"
+    layout.NextChapterRetrieved(Error(e)) -> #(model, error_effect(e))
     layout.ProgressUpdated(Ok(Nil)) -> {
       let assert option.Some(cont_point) = model.continue_point
       let assert option.Some(current_progress) = model.reader_progress
@@ -736,8 +747,7 @@ fn update(
         },
       )
     }
-    layout.ContinuePointRetrieved(Error(_)) ->
-      todo as "handle continue point having an error"
+    layout.ContinuePointRetrieved(Error(e)) -> #(model, error_effect(e))
     layout.ProgressRetrieved(Ok(progress)) -> {
       let assert option.Some(user) = model.user
       #(
@@ -745,7 +755,7 @@ fn update(
         reader.chapter_info(user.token, progress.chapter_id),
       )
     }
-    layout.ProgressRetrieved(Error(_)) -> todo as "handle progress error??"
+    layout.ProgressRetrieved(Error(e)) -> #(model, error_effect(e))
     layout.ChapterInfoRetrieved(Ok(inf)) -> {
       let assert option.Some(user) = model.user
       let assert option.Some(prog) = model.reader_progress
@@ -781,7 +791,7 @@ fn update(
         ]),
       )
     }
-    layout.ChapterInfoRetrieved(Error(_)) -> todo as "handle chapter info error"
+    layout.ChapterInfoRetrieved(Error(e)) -> #(model, error_effect(e))
     layout.RequestSeriesUpdate(serie) -> {
       let assert option.Some(user) = model.user
       #(model, series_req.request_update(serie, user.token, user.username))
@@ -801,7 +811,7 @@ fn update(
     )
     layout.LibrariesGot(Error(e)) -> {
       echo e
-      todo as "handle library fail"
+      #(model, error_effect(e))
     }
     layout.FormSubmitted(element_id) -> {
       echo element_id
@@ -865,6 +875,7 @@ fn view(model: model.Model) -> Element(layout.Msg) {
         router.Reader(_) -> reader_page.page(model)
         router.Upload -> upload.page(model)
         router.NotFound -> not_found.page()
+        router.ErrorPage(err) -> error.page(err)
       }
 
       case model.route {

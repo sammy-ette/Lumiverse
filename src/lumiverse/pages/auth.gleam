@@ -98,7 +98,7 @@ pub fn login(model: model.Model) {
                   button.solid(button.Neutral),
                   button.md(),
                   attribute.class("w-full font-semibold"),
-                  attribute.disabled(True),
+                  attribute.disabled(model.doing_oidc),
                 ],
                 case model.doing_oidc {
                   False -> [
