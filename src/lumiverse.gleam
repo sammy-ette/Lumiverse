@@ -669,36 +669,16 @@ fn update(
           ..current_progress,
           page_number: current_progress.page_number + 1,
         )
-      let assert option.Some(cont_point) = model.continue_point
-      case int.compare(advanced_progress.page_number, cont_point.pages) {
-        order.Eq -> {
-          let assert Ok(next_uri) = case model.next_chapter {
-            option.None ->
-              uri.parse("/series/" <> int.to_string(current_progress.series_id))
-            option.Some(next_chapter) ->
-              uri.parse("/chapter/" <> int.to_string(next_chapter))
-          }
-          #(
-            model.Model(
-              ..model,
-              reader_progress: option.None,
-              reader_image_loaded: False,
-            ),
-            modem.load(next_uri),
-          )
-        }
-        _ -> {
-          scroll_reader()
-          #(
-            model.Model(
-              ..model,
-              reader_progress: option.Some(advanced_progress),
-              reader_image_loaded: False,
-            ),
-            reader.save_progress(user.token, advanced_progress),
-          )
-        }
-      }
+
+      scroll_reader()
+      #(
+        model.Model(
+          ..model,
+          reader_progress: option.Some(advanced_progress),
+          reader_image_loaded: False,
+        ),
+        reader.save_progress(user.token, advanced_progress),
+      )
     }
     layout.PreviousChapterRetrieved(Ok(prev)) -> #(
       model.Model(..model, prev_chapter: case prev {
@@ -717,7 +697,30 @@ fn update(
       effect.none(),
     )
     layout.NextChapterRetrieved(Error(_)) -> todo as "handle next chapter fail"
-    layout.ProgressUpdated(Ok(Nil)) -> #(model, effect.none())
+    layout.ProgressUpdated(Ok(Nil)) -> {
+      let assert option.Some(cont_point) = model.continue_point
+      let assert option.Some(current_progress) = model.reader_progress
+
+      case int.compare(current_progress.page_number, cont_point.pages) {
+        order.Eq -> {
+          let assert Ok(next_uri) = case model.next_chapter {
+            option.None ->
+              uri.parse("/series/" <> int.to_string(current_progress.series_id))
+            option.Some(next_chapter) ->
+              uri.parse("/chapter/" <> int.to_string(next_chapter))
+          }
+          #(
+            model.Model(
+              ..model,
+              reader_progress: option.None,
+              reader_image_loaded: False,
+            ),
+            modem.load(next_uri),
+          )
+        }
+        _ -> #(model, effect.none())
+      }
+    }
     layout.ProgressUpdated(Error(_)) ->
       todo as "handle if progress update failed"
     layout.ContinuePointRetrieved(Ok(cont_point)) -> {
