@@ -94,6 +94,7 @@ pub type Info {
     localized_name: String,
     created: date.Date,
     last_chapter_added: date.Date,
+    pages: Int,
     pages_read: Int,
   )
 }
@@ -104,6 +105,7 @@ pub fn info_decoder() {
   use localized_name <- decode.field("localizedName", decode.string)
   use created <- decode.field("created", date_decoder())
   use last_chapter_added <- decode.field("lastChapterAdded", date_decoder())
+  use pages <- decode.field("pages", decode.int)
   use pages_read <- decode.field("pagesRead", decode.int)
   decode.success(Info(
     id:,
@@ -111,6 +113,7 @@ pub fn info_decoder() {
     localized_name:,
     created:,
     last_chapter_added:,
+    pages:,
     pages_read:,
   ))
 }

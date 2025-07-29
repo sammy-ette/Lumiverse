@@ -181,7 +181,11 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                     html.span([attribute.class("icon-book")], []),
                     element.text(case srs.pages_read {
                       0 -> "Start Reading"
-                      _ -> "Continue Reading"
+                      _ ->
+                        case srs.pages_read == srs.pages {
+                          False -> "Continue Reading"
+                          True -> "Re-read"
+                        }
                     }),
                   ],
                 ),
@@ -355,7 +359,7 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                                       attribute.style(
                                         "width",
                                         int.to_string(
-                                          chp.pages / chp.pages_read,
+                                          chp.pages / chp.pages_read * 100,
                                         )
                                           <> "%",
                                       ),
