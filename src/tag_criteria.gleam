@@ -1,6 +1,7 @@
 import gleam/list
 import gleam/order
 import gleam/string
+import lumiverse/models/series
 
 pub const content_type = ["artbook"]
 
@@ -15,15 +16,15 @@ pub const explicit = [
 // colored orange
 pub const beware = ["suggestive", "ecchi", "beware-test-tag"]
 
-pub fn compare(a: String, b: String) -> order.Order {
-  case compare_in_list(a, b, content_type) {
+pub fn compare(a: series.Tag, b: series.Tag) -> order.Order {
+  case compare_in_list(a.title, b.title, content_type) {
     order.Eq ->
-      case compare_in_list(a, b, special) {
+      case compare_in_list(a.title, b.title, special) {
         order.Eq ->
-          case compare_in_list(a, b, explicit) {
+          case compare_in_list(a.title, b.title, explicit) {
             order.Eq ->
-              case compare_in_list(a, b, beware) {
-                order.Eq -> string.compare(a, b)
+              case compare_in_list(a.title, b.title, beware) {
+                order.Eq -> string.compare(a.title, b.title)
                 res -> res
               }
             res -> res

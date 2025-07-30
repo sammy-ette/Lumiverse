@@ -51,7 +51,7 @@ pub type Msg {
   // Series Page
   RequestSeriesUpdate(series.Info)
   SeriesUpdateRequested(Result(Nil, http.HttpError))
-  TagClicked(cross: Bool)
+  TagClicked(cross: Bool, tag: series.Tag)
 
   // Upload Page
   LibrariesGot(Result(List(library.Library), http.HttpError))
@@ -70,6 +70,9 @@ pub type Msg {
   ChapterInfoRetrieved(Result(reader.ChapterInfo, http.HttpError))
   PreviousChapterRetrieved(Result(Int, http.HttpError))
   NextChapterRetrieved(Result(Int, http.HttpError))
+
+  // General
+  SeriesMetadataUpdated(Result(Int, http.HttpError))
 }
 
 pub fn nav(model: model.Model) {

@@ -6,6 +6,7 @@ import gleam/io
 import gleam/list
 import gleam/option
 import gleam/order
+import gleam/result
 import gleam/string
 import gleam/uri
 import lumiverse/api/library
@@ -666,17 +667,56 @@ fn update(
       echo "failed to get user roles"
       #(model, effect.none())
     }
-    layout.TagClicked(cross) ->
+    layout.TagClicked(cross, t) ->
       case cross {
         True -> {
-          echo "deleting tag"
-          #(model, effect.none())
+          let assert option.Some(user) = model.user
+          let res = {
+            use viewing_series <- result.try(
+              option.to_result(model.viewing_series, #(model, effect.none())),
+            )
+            let assert Ok(srs) = viewing_series
+            use metadata <- result.try(
+              result.replace_error(dict.get(model.metadatas, srs.id), #(
+                model,
+                effect.none(),
+              )),
+            )
+            use updated_tags <- result.try(
+              result.replace_error(
+                metadata.tags
+                  |> list.map(fn(t: series_model.Tag) { #(t.id, t.title) })
+                  |> list.key_pop(t.id),
+                #(model, effect.none()),
+              ),
+            )
+            Ok(#(
+              model,
+              series_req.update_metadata(
+                series_model.Metadata(
+                  ..metadata,
+                  tags: updated_tags.1
+                    |> list.map(fn(tag_pair) {
+                      series_model.Tag(tag_pair.0, tag_pair.1)
+                    }),
+                ),
+                user.token,
+              ),
+            ))
+          }
+          result.unwrap_both(res)
         }
         False -> {
           echo "opening tag"
           #(model, effect.none())
         }
       }
+    layout.SeriesMetadataUpdated(Ok(series_id)) -> {
+      echo "updated tags!"
+      let assert option.Some(user) = model.user
+      #(model, series_req.metadata(series_id, user.token))
+    }
+    layout.SeriesMetadataUpdated(Error(e)) -> #(model, error_effect(e))
     layout.Read(chp) -> {
       case model.user {
         option.Some(user) -> {

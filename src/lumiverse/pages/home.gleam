@@ -218,12 +218,8 @@ pub fn page(model: model.Model) -> element.Element(layout.Msg) {
                                         {
                                           let tags =
                                             list.append(
-                                              list.map(metadata.tags, fn(t) {
-                                                t.title
-                                              }),
-                                              list.map(metadata.genres, fn(t) {
-                                                t.title
-                                              }),
+                                              metadata.tags,
+                                              metadata.genres,
                                             )
                                           let assert option.Some(user) =
                                             model.user
@@ -236,6 +232,7 @@ pub fn page(model: model.Model) -> element.Element(layout.Msg) {
                                                   tags,
                                                   tag_criteria.compare,
                                                 ),
+                                                False,
                                               ),
                                             ]
                                           }

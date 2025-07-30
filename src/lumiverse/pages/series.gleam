@@ -5,6 +5,7 @@ import gleam/int
 import gleam/list
 import gleam/option
 import gleam/result
+import lumiverse/models/auth
 import plinth/javascript/date
 
 import lustre/attribute.{class}
@@ -213,16 +214,19 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                 ],
                 list.append(
                   {
-                    let tags =
-                      list.append(
-                        list.map(metadata.tags, fn(t) { t.title }),
-                        list.map(metadata.genres, fn(t) { t.title }),
-                      )
+                    let tags = list.append(metadata.tags, metadata.genres)
                     let assert option.Some(user) = model.user
-                    case list.length(tags) {
-                      0 -> []
-                      _ -> [
-                        tag.list(user, list.sort(tags, tag_criteria.compare)),
+                    case
+                      list.length(tags),
+                      option.unwrap(user.roles, []) |> list.contains(auth.Admin)
+                    {
+                      0, False -> []
+                      _, _ -> [
+                        tag.list(
+                          user,
+                          list.sort(tags, tag_criteria.compare),
+                          True,
+                        ),
                       ]
                     }
                   },
