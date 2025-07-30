@@ -2,6 +2,7 @@ import gleam/option
 import lustre/attribute
 import lustre/element
 import lustre/element/html
+import plinth/javascript/global
 
 import lustre_http as http
 
@@ -42,6 +43,10 @@ pub type Msg {
   DashboardItemRetrieved(Result(model.SeriesList, http.HttpError))
   SeriesRetrieved(Result(series.Info, http.HttpError))
   SeriesMetadataRetrieved(Result(series.Metadata, http.HttpError))
+  PopularSeriesRetrieved(Result(List(series.Info), http.HttpError))
+  CarouselNext
+  CarouselPrevious
+  CarouselIntervalID(global.TimerID)
 
   // Series Page
   RequestSeriesUpdate(series.Info)
@@ -71,7 +76,7 @@ pub fn nav(model: model.Model) {
   html.nav(
     [
       attribute.class(
-        "z-20 bg-zinc-950/85 backdrop-blur-xl"
+        "z-50 bg-zinc-950/85 backdrop-blur-xl"
         <> case model.route {
           router.Reader(_) -> ""
           _ -> " sticky top-0 left-0 right-0"

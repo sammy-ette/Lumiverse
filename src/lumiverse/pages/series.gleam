@@ -12,7 +12,6 @@ import lustre/element
 import lustre/element/html
 import lustre/event
 
-import date as date_int
 import lumiverse/elements/tag
 import lumiverse/layout
 import lumiverse/model

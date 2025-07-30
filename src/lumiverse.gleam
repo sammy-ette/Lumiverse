@@ -20,6 +20,7 @@ import lustre_http as http
 import modem
 import plinth/browser/document
 import plinth/browser/element as plinth_element
+import plinth/javascript/global
 
 import localstorage
 import oidc
@@ -58,7 +59,7 @@ fn init(_) {
       case api.decode_login_json(jsondata) {
         Ok(user) -> option.Some(user)
         Error(_) -> {
-          localstorage.remove("kavita_user")
+          let _ = localstorage.remove("kavita_user")
           option.None
         }
       }
@@ -90,8 +91,11 @@ fn init(_) {
       doing_oidc: False,
       home: model.HomeModel(
         carousel: [],
+        carousel_index: 0,
         carousel_smalldata: [],
         series_lists: [],
+        carousel_timer_id: global.set_timeout(0, fn() { Nil }),
+        // to get a global.TimerID value
         dashboard_count: 0,
       ),
       metadatas: dict.new(),
@@ -125,7 +129,18 @@ fn homepage_display(user: option.Option(auth_model.User)) -> Effect(layout.Msg) 
     }
     option.Some(user) -> {
       io.println("getting recently added")
-      api.dashboard(user.token)
+      effect.batch([
+        api.dashboard(user.token),
+        api.popular_series(user.token),
+        effect.from(fn(dispatch) {
+          let timer_id =
+            global.set_interval(6000, fn() {
+              layout.CarouselNext |> dispatch
+              Nil
+            })
+          layout.CarouselIntervalID(timer_id) |> dispatch
+        }),
+      ])
     }
   }
 }
@@ -136,6 +151,11 @@ fn redirect_login() {
 }
 
 fn route_effect(model: model.Model, route: router.Route) -> Effect(layout.Msg) {
+  case route {
+    _ -> global.clear_interval(model.home.carousel_timer_id)
+    router.Home -> Nil
+  }
+
   case route {
     router.Home ->
       case model.user == option.None && model.guest == False {
@@ -259,6 +279,44 @@ fn update(
       echo "config failed"
       #(model, effect.none())
     }
+    layout.PopularSeriesRetrieved(Ok(serieses)) -> {
+      let assert option.Some(user) = model.user
+      let metadata_fetchers =
+        list.map(serieses, fn(s: series_model.Info) {
+          series_req.metadata(s.id, user.token)
+        })
+      #(
+        model.Model(
+          ..model,
+          home: model.HomeModel(..model.home, carousel: serieses),
+        ),
+        effect.batch(metadata_fetchers),
+      )
+    }
+    layout.CarouselNext -> #(
+      model.Model(
+        ..model,
+        home: model.HomeModel(..model.home, carousel_index: {
+          use <- bool.guard(model.home.carousel |> list.is_empty, 0)
+          case
+            model.home.carousel_index + 1 == model.home.carousel |> list.length
+          {
+            True -> 0
+            False -> model.home.carousel_index + 1
+          }
+        }),
+      ),
+      effect.none(),
+    )
+    layout.CarouselPrevious -> #(model, effect.none())
+    layout.CarouselIntervalID(id) -> #(
+      model.Model(
+        ..model,
+        home: model.HomeModel(..model.home, carousel_timer_id: id),
+      ),
+      effect.none(),
+    )
+    layout.PopularSeriesRetrieved(Error(e)) -> #(model, error_effect(e))
     layout.DashboardRetrieved(Ok(dashboard)) -> {
       let assert option.Some(user) = model.user
       let fetchers =
@@ -358,7 +416,6 @@ fn update(
                   0 -> model.home.dashboard_count - 1
                   _ -> model.home.dashboard_count
                 },
-                carousel_smalldata: series.items,
               ),
               // series: new_series,
             ),

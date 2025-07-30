@@ -1,5 +1,6 @@
 import gleam/dict
 import gleam/option
+import plinth/javascript/global
 
 import lustre_http as http
 
@@ -42,7 +43,9 @@ pub type AuthModel {
 pub type HomeModel {
   HomeModel(
     carousel_smalldata: List(series.MinimalInfo),
-    carousel: List(series.Metadata),
+    carousel: List(series.Info),
+    carousel_index: Int,
+    carousel_timer_id: global.TimerID,
     series_lists: List(SeriesList),
     dashboard_count: Int,
   )

@@ -5,16 +5,13 @@ import gleam/http/request
 import gleam/json
 import gleam/option
 
-import gleam/io
-
 import lustre_http
 
-import router
-
-import lumiverse/api/msg
 import lumiverse/layout
 import lumiverse/models/auth
+import lumiverse/models/series
 import lumiverse/models/stream
+import router
 
 // UPDATE BOTH
 fn decoder() {
@@ -212,5 +209,33 @@ pub fn dashboard(token: String) {
       decode.list(dashboard_decoder()),
       layout.DashboardRetrieved,
     ),
+  )
+}
+
+fn popular_decoder() {
+  use info <- decode.field(
+    "mostPopularSeries",
+    decode.list({
+      use info <- decode.field("value", series.info_decoder())
+      decode.success(info)
+    }),
+  )
+  decode.success(info)
+}
+
+pub fn popular_series(token: String) {
+  let assert Ok(req) = request.to(router.direct("/api/stats/server/stats"))
+
+  let req =
+    req
+    |> request.set_method(http.Get)
+    |> request.set_body(json.object([]) |> json.to_string)
+    |> request.set_header("Authorization", "Bearer " <> token)
+    |> request.set_header("Accept", "application/json")
+    |> request.set_header("Content-Type", "application/json")
+
+  lustre_http.send(
+    req,
+    lustre_http.expect_json(popular_decoder(), layout.PopularSeriesRetrieved),
   )
 }
