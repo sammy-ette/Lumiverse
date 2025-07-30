@@ -137,9 +137,7 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
         [
           html.div([class("flex flex-col sm:flex-row md:flex-row gap-4")], [
             html.img([
-              class(
-                "max-sm:self-center bg-zinc-800 rounded object-cover w-52 h-80",
-              ),
+              class("max-sm:self-center bg-zinc-800 rounded w-52 h-80"),
               attribute.src(cover_url),
               attribute.rel("preload"),
               attribute.attribute("fetchpriority", "high"),

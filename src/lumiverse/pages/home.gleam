@@ -17,6 +17,35 @@ import lumiverse/models/series as series_model
 import router
 import tag_criteria
 
+fn placeholder_carousel_item() {
+  html.div(
+    [
+      attribute.class(
+        "flex-shrink-0 w-full gap-6 relative flex flex-nowrap p-4 pt-16 space-y-2",
+      ),
+    ],
+    [
+      html.div(
+        [
+          attribute.class(
+            "flex-shrink-0 max-w-screen-xl mx-auto w-full gap-6 relative flex flex-nowrap space-y-2",
+          ),
+        ],
+        [
+          html.div(
+            [
+              attribute.class(
+                "max-sm:self-center bg-zinc-800 rounded animate-pulse w-58 h-80",
+              ),
+            ],
+            [],
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
 pub fn page(model: model.Model) -> element.Element(layout.Msg) {
   let assert option.Some(user) = model.user
   html.div([], [
@@ -45,34 +74,7 @@ pub fn page(model: model.Model) -> element.Element(layout.Msg) {
             ),
           ],
           case model.home.carousel |> list.is_empty {
-            True -> [
-              html.div(
-                [
-                  attribute.class(
-                    "flex-shrink-0 w-full gap-6 relative flex flex-nowrap p-4 pt-16 space-y-2",
-                  ),
-                ],
-                [
-                  html.div(
-                    [
-                      attribute.class(
-                        "flex-shrink-0 max-w-screen-xl mx-auto w-full gap-6 relative flex flex-nowrap space-y-2",
-                      ),
-                    ],
-                    [
-                      html.div(
-                        [
-                          attribute.class(
-                            "max-sm:self-center bg-zinc-800 rounded animate-pulse w-52 h-80",
-                          ),
-                        ],
-                        [],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ]
+            True -> [placeholder_carousel_item()]
             False ->
               list.index_map(
                 model.home.carousel,
@@ -80,32 +82,7 @@ pub fn page(model: model.Model) -> element.Element(layout.Msg) {
                   let res = {
                     use metadata <- result.try(result.replace_error(
                       model.metadatas |> dict.get(srs.id),
-                      html.div(
-                        [
-                          attribute.class(
-                            "flex-shrink-0 w-full gap-6 relative flex flex-nowrap p-4 pt-16 space-y-2",
-                          ),
-                        ],
-                        [
-                          html.div(
-                            [
-                              attribute.class(
-                                "flex-shrink-0 max-w-screen-xl mx-auto w-full gap-6 relative flex flex-nowrap space-y-2",
-                              ),
-                            ],
-                            [
-                              html.div(
-                                [
-                                  attribute.class(
-                                    "max-sm:self-center bg-zinc-800 rounded animate-pulse w-52 h-80",
-                                  ),
-                                ],
-                                [],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                      placeholder_carousel_item(),
                     ))
                     let cover_url =
                       router.direct(
@@ -137,7 +114,7 @@ pub fn page(model: model.Model) -> element.Element(layout.Msg) {
                           html.div(
                             [
                               attribute.class(
-                                "absolute left-0 top-0 object-cover w-full h-full bg-linear-to-t from-zinc-950 to-zinc-950/50 backdrop-blur-sm z-20",
+                                "absolute left-0 top-0 w-full h-full bg-linear-to-t from-zinc-950 to-zinc-950/50 backdrop-blur-sm z-20",
                               ),
                             ],
                             [],
@@ -151,7 +128,7 @@ pub fn page(model: model.Model) -> element.Element(layout.Msg) {
                             [
                               html.img([
                                 attribute.class(
-                                  "bg-zinc-800 rounded object-cover w-52 h-full z-20",
+                                  "bg-zinc-800 rounded w-72 h-80 z-20",
                                 ),
                                 attribute.src(cover_url),
                                 attribute.rel("preload"),
