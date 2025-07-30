@@ -78,7 +78,10 @@ pub fn page(model: model.Model) -> element.Element(layout.Msg) {
                         [
                           element.text(
                             "Page "
-                            <> int.to_string(progress.page_number + 1)
+                            <> int.to_string(
+                              progress.page_number + 1
+                              |> int.clamp(min: 0, max: inf.pages),
+                            )
                             <> " / "
                             <> int.to_string(inf.pages),
                           ),

@@ -181,7 +181,7 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                     element.text(case srs.pages_read {
                       0 -> "Start Reading"
                       _ ->
-                        case srs.pages_read == srs.pages {
+                        case srs.pages_read == srs.pages - 1 {
                           False -> "Continue Reading"
                           True -> "Re-read"
                         }
@@ -349,7 +349,7 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                                 [
                                   html.div(
                                     [
-                                      case chp.pages_read == chp.pages {
+                                      case chp.pages_read == chp.pages - 1 {
                                         False ->
                                           attribute.class("rounded-bl-md")
                                         True -> attribute.class("rounded-b-lg")
@@ -358,7 +358,9 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                                       attribute.style(
                                         "width",
                                         int.to_string(
-                                          chp.pages / chp.pages_read * 100,
+                                          chp.pages
+                                          / int.subtract(chp.pages_read, 1)
+                                          * 100,
                                         )
                                           <> "%",
                                       ),
