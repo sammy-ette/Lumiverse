@@ -755,7 +755,15 @@ fn update(
           }
         }
         num -> {
+          let assert option.Some(cont_point) = model.continue_point
           let assert option.Some(user) = model.user
+          let num = case current_progress.page_number == cont_point.pages {
+            True -> {
+              echo "going back twice"
+              num - 1
+            }
+            False -> num
+          }
           let advanced_progress =
             reader_model.Progress(..current_progress, page_number: num)
           scroll_reader()
@@ -772,11 +780,13 @@ fn update(
     layout.ReaderNext -> {
       io.println("next, reader!")
       let assert option.Some(user) = model.user
+      let assert option.Some(cont_point) = model.continue_point
       let assert option.Some(current_progress) = model.reader_progress
       let advanced_progress =
         reader_model.Progress(
           ..current_progress,
-          page_number: current_progress.page_number + 1,
+          page_number: current_progress.page_number + 1
+            |> int.clamp(min: 0, max: cont_point.pages),
         )
 
       scroll_reader()
