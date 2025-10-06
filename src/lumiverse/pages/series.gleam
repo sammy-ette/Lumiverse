@@ -316,9 +316,12 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                       html.div(
                         [attribute.class("flex flex-col gap-2 w-ful")],
                         list.map(
-                          list.sort(filtered_chapters, fn(chp_b, chp_a) {
-                            float.compare(chp_a.sort_order, chp_b.sort_order)
-                          }),
+                          list.sort(
+                            filtered_chapters,
+                            fn(chp_a: series.Chapter, chp_b: series.Chapter) {
+                              float.compare(chp_a.sort_order, chp_b.sort_order)
+                            },
+                          ),
                           fn(chp: series.Chapter) {
                             html.div([attribute.class("w-full group")], [
                               button(
