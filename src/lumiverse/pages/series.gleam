@@ -4,6 +4,7 @@ import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option
+import gleam/order
 import gleam/result
 import lumiverse/models/auth
 import plinth/javascript/date
@@ -332,48 +333,63 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                                   button.solid(button.Neutral),
                                   button.lg(),
                                   class(
-                                    "group-hover:bg-zinc-700/60 w-full rounded-b-none text-white font-semibold",
+                                    "group-hover:bg-zinc-700/60 w-full text-white font-semibold",
                                   ),
+                                  case chp.pages_read {
+                                    0 -> attribute.none()
+                                    _ -> class("rounded-b-none")
+                                  },
                                 ],
                                 [
                                   html.span([attribute.class("icon-book")], []),
                                   element.text(chp.title),
                                 ],
                               ),
-                              html.div(
-                                [
-                                  case chp.pages_read {
-                                    0 ->
-                                      attribute.class(
-                                        "group-hover:bg-zinc-700/60 bg-zinc-700",
-                                      )
-                                    _ -> attribute.class("bg-zinc-800")
-                                  },
-                                  attribute.class("w-full rounded-b-md h-1"),
-                                ],
-                                [
+                              case chp.pages_read {
+                                0 -> element.none()
+                                _ ->
                                   html.div(
                                     [
-                                      case chp.pages_read == chp.pages - 1 {
-                                        False ->
-                                          attribute.class("rounded-bl-md")
-                                        True -> attribute.class("rounded-b-lg")
+                                      case chp.pages_read {
+                                        0 ->
+                                          attribute.class(
+                                            "group-hover:bg-zinc-700/60 bg-zinc-700",
+                                          )
+                                        _ -> attribute.class("bg-zinc-800")
                                       },
-                                      attribute.class("bg-violet-500 h-1"),
-                                      attribute.style(
-                                        "width",
-                                        int.to_string(
-                                          chp.pages
-                                          / int.subtract(chp.pages_read, 1)
-                                          * 100,
-                                        )
-                                          <> "%",
+                                      attribute.class("w-full rounded-b-md h-1"),
+                                    ],
+                                    [
+                                      html.div(
+                                        [
+                                          case chp.pages_read == chp.pages {
+                                            False ->
+                                              attribute.class(
+                                                "bg-violet-500 rounded-bl-md",
+                                              )
+                                            True ->
+                                              attribute.class(
+                                                "bg-emerald-500 rounded-b-lg",
+                                              )
+                                          },
+                                          attribute.class("h-1"),
+                                          attribute.style(
+                                            "width",
+                                            float.to_string(
+                                              {
+                                                int.to_float(chp.pages_read)
+                                                /. int.to_float(chp.pages)
+                                              }
+                                              *. 100.0,
+                                            )
+                                              <> "%",
+                                          ),
+                                        ],
+                                        [],
                                       ),
                                     ],
-                                    [],
-                                  ),
-                                ],
-                              ),
+                                  )
+                              },
                             ])
                           },
                         ),
