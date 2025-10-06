@@ -55,7 +55,7 @@ pub fn page(model: model.Model) -> element.Element(layout.Msg) {
           html.h1(
             [
               attribute.class(
-                "z-30 absolute mx-auto py-4 pt-2 text-lg sm:text-3xl font-bold sm:font-extrabold font-['Poppins']",
+                "z-30 absolute mx-auto py-4 px-3 pt-2 text-lg sm:text-3xl font-bold sm:font-extrabold font-['Poppins']",
               ),
             ],
             [element.text("Popular on Lumiverse")],
@@ -104,7 +104,7 @@ pub fn page(model: model.Model) -> element.Element(layout.Msg) {
                         [
                           html.img([
                             attribute.class(
-                              "absolute left-0 top-0 object-cover w-full",
+                              "absolute left-0 -top-16 object-cover w-full",
                             ),
                             attribute.src(cover_url),
                             attribute.rel("preload"),
