@@ -13,9 +13,9 @@ import lumiverse/models/auth
 import lumiverse/models/filter
 import lumiverse/models/library
 import lumiverse/models/reader
-import lumiverse/models/router
 import lumiverse/models/series
 import lumiverse/models/stream
+import router
 
 // TODO: put messages related to a specific page in separate source
 // there is no reason for LoginGot to not be outside auth.Msg

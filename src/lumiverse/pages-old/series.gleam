@@ -181,7 +181,7 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                     element.text(case srs.pages_read {
                       0 -> "Start Reading"
                       _ ->
-                        case srs.pages_read == srs.pages - 1 {
+                        case srs.pages_read == srs.pages {
                           False -> "Continue Reading"
                           True -> "Re-read"
                         }
@@ -311,9 +311,25 @@ fn real_page(model: model.Model) -> element.Element(layout.Msg) {
                   True -> element.none()
                   False ->
                     html.div([attribute.class("space-y-4")], [
-                      html.h2([attribute.class("font-bold text-3xl")], [
-                        element.text("Chapters"),
-                      ]),
+                      html.div(
+                        [
+                          attribute.class(
+                            "flex flex-wrap gap-3 justify-between",
+                          ),
+                        ],
+                        [
+                          html.h2([attribute.class("font-bold text-3xl")], [
+                            element.text("Chapters"),
+                          ]),
+                          button([button.solid(button.Neutral), button.md()], [
+                            html.i(
+                              [attribute.class("ph ph-sort-ascending text-2xl")],
+                              [],
+                            ),
+                            element.text("Ascending"),
+                          ]),
+                        ],
+                      ),
                       html.div(
                         [attribute.class("flex flex-col gap-2 w-ful")],
                         list.map(

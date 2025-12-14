@@ -1,288 +1,61 @@
-import gleam/dict
-import gleam/int
-import gleam/list
-import gleam/option
-import gleam/result
-
+import lumiverse/elements/tag_new
+import lustre
 import lustre/attribute
+import lustre/effect
 import lustre/element
 import lustre/element/html
-import plinth/javascript/date
 
-import lumiverse/elements/series
-import lumiverse/elements/tag
-import lumiverse/layout
-import lumiverse/model
-import lumiverse/models/series as series_model
-import router
-import tag_criteria
+type Model {
+  Model
+}
 
-fn placeholder_carousel_item() {
-  html.div(
-    [
-      attribute.class(
-        "flex-shrink-0 w-full gap-6 relative flex flex-nowrap p-4 pt-16 space-y-2",
-      ),
-    ],
-    [
-      html.div(
-        [
-          attribute.class(
-            "flex-shrink-0 max-w-screen-xl mx-auto w-full gap-6 relative flex flex-nowrap space-y-2",
-          ),
-        ],
-        [
-          html.div(
-            [
-              attribute.class(
-                "max-sm:self-center bg-zinc-800 rounded animate-pulse w-58 h-80",
-              ),
-            ],
-            [],
-          ),
-        ],
-      ),
-    ],
+type Msg
+
+pub fn register() {
+  let app = lustre.component(init, update, view, [])
+  lustre.register(app, "home-page")
+}
+
+pub fn element() {
+  element.element(
+    "home-page",
+    [attribute.class("flex-1 flex flex-col justify-center items-center")],
+    [],
   )
 }
 
-pub fn page(model: model.Model) -> element.Element(layout.Msg) {
-  let assert option.Some(user) = model.user
-  html.div([], [
-    html.div([attribute.class("w-full bg-zinc-900 mb-4")], [
-      html.div([attribute.class("overflow-hidden")], [
-        html.div([attribute.class("max-w-screen-xl mx-auto")], [
-          html.h1(
-            [
-              attribute.class(
-                "z-30 absolute mx-auto py-4 px-3 pt-2 text-lg sm:text-3xl font-bold sm:font-extrabold font-['Poppins']",
-              ),
-            ],
-            [element.text("Popular on Lumiverse")],
-          ),
-        ]),
-        html.div(
-          [
-            attribute.style(
-              "transform",
-              "translateX(-"
-                <> int.to_string(model.home.carousel_index * 100)
-                <> "%)",
-            ),
-            attribute.class(
-              "mx-auto relative flex transition-transform duration-500 ease-in-out w-full",
-            ),
-          ],
-          case model.home.carousel |> list.is_empty {
-            True -> [placeholder_carousel_item()]
-            False ->
-              list.index_map(
-                model.home.carousel,
-                fn(srs: series_model.Info, idx: Int) {
-                  let res = {
-                    use metadata <- result.try(result.replace_error(
-                      model.metadatas |> dict.get(srs.id),
-                      placeholder_carousel_item(),
-                    ))
-                    let cover_url =
-                      router.direct(
-                        "/api/image/series-cover?seriesId="
-                        <> int.to_string(srs.id)
-                        <> "&apiKey="
-                        <> user.api_key,
-                      )
-                    let new_time_range =
-                      date.get_time(date.now()) - 3 * { 24 * 60 * 60 * 1000 }
+fn init(_) {
+  #(Model, effect.none())
+}
 
-                    Ok(
-                      html.div(
-                        [
-                          attribute.class(
-                            "flex-shrink-0 w-full gap-6 relative flex flex-nowrap p-4 pt-16 space-y-2",
-                          ),
-                        ],
-                        [
-                          html.img([
-                            attribute.class(
-                              "absolute left-0 -top-16 object-cover w-full",
-                            ),
-                            attribute.src(cover_url),
-                            attribute.rel("preload"),
-                            attribute.attribute("fetchpriority", "high"),
-                            attribute.attribute("as", "image"),
-                          ]),
-                          html.div(
-                            [
-                              attribute.class(
-                                "absolute left-0 top-0 w-full h-full bg-linear-to-t from-zinc-950 to-zinc-950/50 backdrop-blur-sm z-20",
-                              ),
-                            ],
-                            [],
-                          ),
-                          html.div(
-                            [
-                              attribute.class(
-                                "flex-shrink-0 max-w-screen-xl mx-auto w-full gap-6 relative flex flex-nowrap space-y-2",
-                              ),
-                            ],
-                            [
-                              html.img([
-                                attribute.class(
-                                  "bg-zinc-800 rounded w-72 h-80 z-20",
-                                ),
-                                attribute.src(cover_url),
-                                attribute.rel("preload"),
-                                attribute.attribute("fetchpriority", "high"),
-                                attribute.attribute("as", "image"),
-                                attribute.alt(
-                                  "Cover image for " <> srs.localized_name,
-                                ),
-                              ]),
-                              html.div(
-                                [
-                                  attribute.class(
-                                    "flex flex-col z-20 justify-between w-full",
-                                  ),
-                                ],
-                                [
-                                  html.div(
-                                    [attribute.class("flex flex-col gap-4")],
-                                    [
-                                      html.div([attribute.class("space-y-1")], [
-                                        html.div(
-                                          [
-                                            attribute.class(
-                                              "flex flex-nowrap gap-2 font-['Poppins'] font-extrabold",
-                                            ),
-                                          ],
-                                          [
-                                            case
-                                              srs.created |> date.get_time()
-                                              > new_time_range
-                                            {
-                                              True ->
-                                                tag.single_custom(
-                                                  "New!",
-                                                  "bg-rose-600",
-                                                )
-                                              False -> element.none()
-                                            },
-                                            html.h2(
-                                              [
-                                                attribute.class(
-                                                  "text-lg sm:text-3xl ",
-                                                ),
-                                              ],
-                                              [element.text(srs.localized_name)],
-                                            ),
-                                          ],
-                                        ),
-                                        html.h3(
-                                          [
-                                            attribute.class(
-                                              "font-medium sm:font-semibold text-sm sm:text-md",
-                                            ),
-                                          ],
-                                          [element.text(srs.name)],
-                                        ),
-                                      ]),
-                                      html.div(
-                                        [
-                                          attribute.class(
-                                            "items-baseline flex flex-wrap gap-2 uppercase font-['Poppins'] font-semibold text-[0.7rem]",
-                                          ),
-                                        ],
-                                        {
-                                          let tags =
-                                            list.append(
-                                              metadata.tags,
-                                              metadata.genres,
-                                            )
-                                          let assert option.Some(user) =
-                                            model.user
-                                          case list.length(tags) {
-                                            0 -> []
-                                            _ -> [
-                                              tag.list(
-                                                user,
-                                                list.sort(
-                                                  tags,
-                                                  tag_criteria.compare,
-                                                ),
-                                                False,
-                                              ),
-                                            ]
-                                          }
-                                        },
-                                      ),
-                                      html.p([], [
-                                        element.text(metadata.summary),
-                                      ]),
-                                    ],
-                                  ),
-                                  html.div(
-                                    [
-                                      attribute.class(
-                                        "font-['Poppins'] flex justify-between",
-                                      ),
-                                    ],
-                                    [
-                                      html.span(
-                                        [
-                                          case idx {
-                                            0 ->
-                                              attribute.class("text-violet-400")
-                                            _ -> attribute.none()
-                                          },
-                                          attribute.class("font-semibold"),
-                                        ],
-                                        [
-                                          element.text(
-                                            "#"
-                                            <> int.to_string(idx + 1)
-                                            <> " Popular Series",
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    )
-                  }
+fn update(m: Model, msg: Msg) {
+  #(m, effect.none())
+}
 
-                  result.unwrap_both(res)
-                },
-              )
-          },
-        ),
-      ]),
-    ]),
+fn view(m: Model) {
+  html.div([attribute.class("w-full h-full")], [
     html.div(
+      [attribute.class("h-1/3 min-h-48 bg-sky-500 rounded-md p-4 flex gap-4")],
       [
-        attribute.class(
-          "max-w-screen-xl flex flex-nowrap flex-col mx-auto mb-8 px-4 space-y-5",
-        ),
-      ],
-      list.take(
-        list.flatten([
-          list.map(model.home.series_lists, fn(serie_list) {
-            series.series_list(
-              list.map(serie_list.items, fn(serie) { series.card(model, serie) }),
-              serie_list.title,
-            )
-          }),
-          list.repeat(
-            series.placeholder_series_list(),
-            model.home.dashboard_count,
+        html.div([attribute.class("rounded-md h-full w-42 bg-white")], []),
+        html.div([attribute.class("flex flex-col gap-2")], [
+          html.h1(
+            [attribute.class("font-[Poppins,sans-serif] font-bold text-2xl")],
+            [element.text("Insert A Manga Name Here")],
           ),
+          html.div([attribute.class("flex flex-wrap gap-2")], [
+            tag_new.single("explicit-test-tag"),
+            tag_new.single("beware-test-tag"),
+            tag_new.single("Comedy"),
+            tag_new.single("Romance"),
+          ]),
+          html.p([attribute.class("flex-wrap text-wrap")], [
+            element.text(
+              "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+            ),
+          ]),
         ]),
-        model.home.dashboard_count,
-      ),
+      ],
     ),
   ])
 }

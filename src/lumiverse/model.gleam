@@ -7,8 +7,8 @@ import lustre_http as http
 import lumiverse/models/auth
 import lumiverse/models/library
 import lumiverse/models/reader
-import lumiverse/models/router
 import lumiverse/models/series
+import router
 
 pub type Model {
   Model(

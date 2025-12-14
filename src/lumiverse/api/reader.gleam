@@ -74,7 +74,11 @@ pub fn get_progress(token: String, chapter_id: Int) {
   )
 }
 
-pub fn continue_point(token: String, series_id: Int) {
+pub fn continue_point(
+  token: String,
+  series_id: Int,
+  msg: fn(Result(reader.ContinuePoint, lustre_http.HttpError)) -> a,
+) {
   let assert Ok(req) =
     request.to(router.direct(
       "/api/reader/continue-point?seriesId=" <> int.to_string(series_id),
@@ -88,10 +92,7 @@ pub fn continue_point(token: String, series_id: Int) {
     |> request.set_header("Accept", "application/json")
     |> request.set_header("Content-Type", "application/json")
 
-  lustre_http.send(
-    req,
-    lustre_http.expect_json(continue_decoder(), layout.ContinuePointRetrieved),
-  )
+  lustre_http.send(req, lustre_http.expect_json(continue_decoder(), msg))
 }
 
 pub fn save_progress(token: String, progress: reader.Progress) {

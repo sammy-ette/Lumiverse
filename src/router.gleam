@@ -1,29 +1,46 @@
 import gleam/int
-import gleam/io
 import gleam/option
 import gleam/uri
+import lumiverse/common
+
 import plinth/browser/window
 
-import lumiverse/common
-import lumiverse/layout
-import lumiverse/models/router
-import lustre/effect
+pub type Route {
+  Home
+  Login
+  OIDCCallback
+  All
+  Series(String)
+  NotFound
+  Logout
+  Reader(chapter_id: Int)
+  Upload
+}
 
-pub fn uri_to_route(uri: uri.Uri) -> router.Route {
-  case uri.path {
-    "/" -> router.Home
-    "/upload" -> router.Upload
-    "/login" -> router.Login
-    "/oidc/callback" -> router.OIDCCallback
-    "/all" -> router.All
-    "/series/" <> rest -> router.Series(rest)
-    "/chapter/" <> rest -> {
-      let assert Ok(chapter_id) = int.base_parse(rest, 10)
-      router.Reader(chapter_id)
+// Update Function with Routing
+pub type Msg {
+  ChangeRoute(route: Route)
+}
+
+pub fn uri_to_route(uri: uri.Uri) -> Route {
+  let router = fn(path: String) {
+    case path {
+      "/" | "" -> Home
+      "/upload" -> Upload
+      "/login" -> Login
+      "/oidc/callback" -> OIDCCallback
+      "/all" -> All
+      "/series/" <> rest -> Series(rest)
+      "/chapter/" <> rest -> {
+        let assert Ok(chapter_id) = int.base_parse(rest, 10)
+        Reader(chapter_id)
+      }
+      "/signout" -> Logout
+      _ -> NotFound
     }
-    "/signout" -> router.Logout
-    _ -> router.NotFound
   }
+
+  router(uri.path)
 }
 
 pub fn localhost() -> Bool {
@@ -74,15 +91,21 @@ pub fn direct(rel: String) -> String {
   uri.to_string(direction)
 }
 
-pub fn change_route(rel: String) {
+pub fn direct_with_root(root: uri.Uri, rel: String) -> String {
   let assert Ok(rel_url) = uri.parse(rel)
-  let route = uri_to_route(rel_url)
-
-  effect.from(fn(dispatch) {
-    layout.Router(router.ChangeRoute(route))
-    |> dispatch
-  })
+  let assert Ok(direction) = uri.merge(root, rel_url)
+  uri.to_string(direction)
 }
+
+// pub fn change_route(rel: String) {
+//   let assert Ok(rel_url) = uri.parse(rel)
+//   let route = uri_to_route(rel_url)
+
+//   effect.from(fn(dispatch) {
+//     layout.Router(router.ChangeRoute(route))
+//     |> dispatch
+//   })
+// }
 
 pub fn get_route() -> uri.Uri {
   let assert Ok(route) = uri.parse(window.location())
