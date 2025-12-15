@@ -19,7 +19,7 @@ gleam_stdlib = ">= 0.62.0 and < 1.0.0"
 plinth = ">= 0.7.2 and < 1.0.0"
 lustre = ">= 5.2.1 and < 6.0.0"
 gleam_json = ">= 3.0.2 and < 4.0.0"
-modem = ">= 2.1.0 and < 3.0.0"
+modem = {git = "https://github.com/sammy-ette/modem.git", ref = "main"}
 gleam_javascript = ">= 1.0.0 and < 2.0.0"
 gleam_http = ">= 4.1.1 and < 5.0.0"
 gleam_time = ">= 1.4.0 and < 2.0.0"

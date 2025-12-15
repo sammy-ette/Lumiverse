@@ -1,21 +1,34 @@
-import gleam/dynamic
 import gleam/dynamic/decode
-import gleam/fetch
 import gleam/http
 import gleam/http/request
 import gleam/http/response
 import gleam/int
 import gleam/json
-import gleam/option
 import gleam/result
+import lumiverse/api/account
+import lumiverse/api/api
+import rsvp
 
-import gleam/io
+pub type ContinuePoint {
+  ContinuePoint(id: Int, pages_read: Int, pages: Int)
+}
 
-import lustre_http
+fn continue_point_decoder() -> decode.Decoder(ContinuePoint) {
+  use id <- decode.field("id", decode.int)
+  use pages_read <- decode.field("pagesRead", decode.int)
+  use pages <- decode.field("pages", decode.int)
+  decode.success(ContinuePoint(id:, pages_read:, pages:))
+}
 
-import lumiverse/layout
-import lumiverse/models/reader
-import router
+pub type Progress {
+  Progress(
+    volume_id: Int,
+    chapter_id: Int,
+    page_number: Int,
+    series_id: Int,
+    library_id: Int,
+  )
+}
 
 fn progress_decoder() {
   use volume_id <- decode.field("volumeId", decode.int)
@@ -23,7 +36,7 @@ fn progress_decoder() {
   use page_number <- decode.field("pageNum", decode.int)
   use series_id <- decode.field("seriesId", decode.int)
   use library_id <- decode.field("libraryId", decode.int)
-  decode.success(reader.Progress(
+  decode.success(Progress(
     volume_id:,
     chapter_id:,
     page_number:,
@@ -32,11 +45,14 @@ fn progress_decoder() {
   ))
 }
 
-fn continue_decoder() {
-  use id <- decode.field("id", decode.int)
-  use pages_read <- decode.field("pagesRead", decode.int)
-  use pages <- decode.field("pages", decode.int)
-  decode.success(reader.ContinuePoint(id:, pages_read:, pages:))
+pub type ChapterInfo {
+  ChapterInfo(
+    volume_id: Int,
+    series_id: Int,
+    library_id: Int,
+    pages: Int,
+    subtitle: String,
+  )
 }
 
 fn chapter_info_decoder() {
@@ -45,7 +61,7 @@ fn chapter_info_decoder() {
   use library_id <- decode.field("libraryId", decode.int)
   use pages <- decode.field("pages", decode.int)
   use subtitle <- decode.field("subtitle", decode.string)
-  decode.success(reader.ChapterInfo(
+  decode.success(ChapterInfo(
     volume_id:,
     series_id:,
     library_id:,
@@ -54,33 +70,9 @@ fn chapter_info_decoder() {
   ))
 }
 
-pub fn get_progress(token: String, chapter_id: Int) {
+pub fn continue_point(series_id: Int, resp: api.Response(ContinuePoint, a)) {
   let assert Ok(req) =
-    request.to(router.direct(
-      "/api/reader/get-progress?chapterId=" <> int.to_string(chapter_id),
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> token)
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  lustre_http.send(
-    req,
-    lustre_http.expect_json(progress_decoder(), layout.ProgressRetrieved),
-  )
-}
-
-pub fn continue_point(
-  token: String,
-  series_id: Int,
-  msg: fn(Result(reader.ContinuePoint, lustre_http.HttpError)) -> a,
-) {
-  let assert Ok(req) =
-    request.to(router.direct(
+    request.to(api.create_url(
       "/api/reader/continue-point?seriesId=" <> int.to_string(series_id),
     ))
 
@@ -88,15 +80,32 @@ pub fn continue_point(
     req
     |> request.set_method(http.Get)
     |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> token)
+    |> request.set_header("Authorization", "Bearer " <> account.token())
     |> request.set_header("Accept", "application/json")
     |> request.set_header("Content-Type", "application/json")
 
-  lustre_http.send(req, lustre_http.expect_json(continue_decoder(), msg))
+  rsvp.send(req, rsvp.expect_json(continue_point_decoder(), resp))
 }
 
-pub fn save_progress(token: String, progress: reader.Progress) {
-  let assert Ok(req) = request.to(router.direct("/api/reader/progress"))
+pub fn progress(chapter_id: Int, resp: api.Response(Progress, a)) {
+  let assert Ok(req) =
+    request.to(api.create_url(
+      "/api/reader/get-progress?chapterId=" <> int.to_string(chapter_id),
+    ))
+
+  let req =
+    req
+    |> request.set_method(http.Get)
+    |> request.set_body(json.object([]) |> json.to_string)
+    |> request.set_header("Authorization", "Bearer " <> account.token())
+    |> request.set_header("Accept", "application/json")
+    |> request.set_header("Content-Type", "application/json")
+
+  rsvp.send(req, rsvp.expect_json(progress_decoder(), resp))
+}
+
+pub fn save_progress(progress: Progress, resp: api.Response(Nil, a)) {
+  let assert Ok(req) = request.to(api.create_url("/api/reader/progress"))
 
   let req_body =
     json.object([
@@ -111,21 +120,30 @@ pub fn save_progress(token: String, progress: reader.Progress) {
     req
     |> request.set_method(http.Post)
     |> request.set_body(req_body |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> token)
+    |> request.set_header("Authorization", "Bearer " <> account.token())
     |> request.set_header("Accept", "application/json")
     |> request.set_header("Content-Type", "application/json")
 
-  lustre_http.send(req, lustre_http.expect_anything(layout.ProgressUpdated))
+  rsvp.send(
+    req,
+    rsvp.expect_ok_response(fn(res) {
+      case res {
+        Error(e) -> Error(e)
+        Ok(_) -> Ok(Nil)
+      }
+      |> resp
+    }),
+  )
 }
 
 pub fn next_chapter(
-  token: String,
   series_id: Int,
   volume_id: Int,
   chapter_id: Int,
+  resp: api.Response(Int, a),
 ) {
   let assert Ok(req) =
-    request.to(router.direct(
+    request.to(api.create_url(
       "/api/reader/next-chapter?seriesId="
       <> int.to_string(series_id)
       <> "&volumeId="
@@ -138,34 +156,33 @@ pub fn next_chapter(
     req
     |> request.set_method(http.Get)
     |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> token)
+    |> request.set_header("Authorization", "Bearer " <> account.token())
     |> request.set_header("Accept", "application/json")
     |> request.set_header("Content-Type", "application/json")
 
-  lustre_http.send(
+  rsvp.send(
     req,
-    lustre_http.expect_text_response(
-      fn(res: response.Response(String)) {
-        int.base_parse(res.body, 10)
-        |> result.replace_error(lustre_http.OtherError(
-          7,
-          res.body <> " is not a number..",
-        ))
-      },
-      fn(e) { e },
-      fn(res) { layout.NextChapterRetrieved(res) },
-    ),
+    rsvp.expect_text(fn(res) {
+      case res {
+        Ok(num_str) -> {
+          int.parse(num_str)
+          |> result.map_error(fn(_) { rsvp.BadBody })
+          |> resp
+        }
+        Error(e) -> resp(Error(e))
+      }
+    }),
   )
 }
 
 pub fn prev_chapter(
-  token: String,
   series_id: Int,
   volume_id: Int,
   chapter_id: Int,
+  resp: api.Response(Int, a),
 ) {
   let assert Ok(req) =
-    request.to(router.direct(
+    request.to(api.create_url(
       "/api/reader/prev-chapter?seriesId="
       <> int.to_string(series_id)
       <> "&volumeId="
@@ -178,29 +195,28 @@ pub fn prev_chapter(
     req
     |> request.set_method(http.Get)
     |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> token)
+    |> request.set_header("Authorization", "Bearer " <> account.token())
     |> request.set_header("Accept", "application/json")
     |> request.set_header("Content-Type", "application/json")
 
-  lustre_http.send(
+  rsvp.send(
     req,
-    lustre_http.expect_text_response(
-      fn(res: response.Response(String)) {
-        int.base_parse(res.body, 10)
-        |> result.replace_error(lustre_http.OtherError(
-          7,
-          res.body <> " is not a number..",
-        ))
-      },
-      fn(e) { e },
-      fn(res) { layout.PreviousChapterRetrieved(res) },
-    ),
+    rsvp.expect_text(fn(res) {
+      case res {
+        Ok(num_str) -> {
+          int.parse(num_str)
+          |> result.map_error(fn(_) { rsvp.BadBody })
+          |> resp
+        }
+        Error(e) -> resp(Error(e))
+      }
+    }),
   )
 }
 
-pub fn chapter_info(token: String, chapter_id: Int) {
+pub fn chapter_info(chapter_id: Int, resp: api.Response(ChapterInfo, a)) {
   let assert Ok(req) =
-    request.to(router.direct(
+    request.to(api.create_url(
       "/api/reader/chapter-info?chapterId=" <> int.to_string(chapter_id),
     ))
 
@@ -208,12 +224,9 @@ pub fn chapter_info(token: String, chapter_id: Int) {
     req
     |> request.set_method(http.Get)
     |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> token)
+    |> request.set_header("Authorization", "Bearer " <> account.token())
     |> request.set_header("Accept", "application/json")
     |> request.set_header("Content-Type", "application/json")
 
-  lustre_http.send(
-    req,
-    lustre_http.expect_json(chapter_info_decoder(), layout.ChapterInfoRetrieved),
-  )
+  rsvp.send(req, rsvp.expect_json(chapter_info_decoder(), resp))
 }

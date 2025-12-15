@@ -13,7 +13,7 @@ pub type Route {
   Series(String)
   NotFound
   Logout
-  Reader(chapter_id: Int)
+  Reader(String)
   Upload
 }
 
@@ -31,10 +31,7 @@ pub fn uri_to_route(uri: uri.Uri) -> Route {
       "/oidc/callback" -> OIDCCallback
       "/all" -> All
       "/series/" <> rest -> Series(rest)
-      "/chapter/" <> rest -> {
-        let assert Ok(chapter_id) = int.base_parse(rest, 10)
-        Reader(chapter_id)
-      }
+      "/read/" <> rest -> Reader(rest)
       "/signout" -> Logout
       _ -> NotFound
     }

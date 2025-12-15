@@ -7,6 +7,8 @@ import localstorage
 import lumiverse/api/api
 import lumiverse/pages/home
 import lumiverse/pages/login
+import lumiverse/pages/reader
+import lumiverse/pages/series
 import lustre
 import lustre/attribute
 import lustre/effect
@@ -39,6 +41,8 @@ pub fn main() {
   let app = lustre.application(init, update, view)
   let assert Ok(_) = login.register()
   let assert Ok(_) = home.register()
+  let assert Ok(_) = series.register()
+  let assert Ok(_) = reader.register()
   let assert Ok(_) = lustre.start(app, "#app", Nil)
 }
 
@@ -109,21 +113,20 @@ fn update(m: Model, msg: Msg) {
         api.setup_done(ServerSetupDone),
       )
     }
-    ServerHealth(Error(_)) -> #(Model(..m, connecting: False), effect.none())
+    ServerHealth(Error(_)) -> #(Model(..m, connecting: True), effect.none())
     ServerSetupDone(Ok(done)) -> {
-      // let eff = case done {
-      //   True ->
-      //     case localstorage.read("user"), m.route == router.Login {
-      //       Error(_), False -> {
-      //         let assert Ok(path) = uri.parse("/login")
-      //         modem.load(path)
-      //       }
-      //       _, _ -> effect.none()
-      //     }
-      //   False -> modem.push("/setup", option.None, option.None)
-      // }
-      // #(m, eff)
-      #(m, effect.none())
+      let eff = case done {
+        True ->
+          case localstorage.read("user"), m.route == router.Login {
+            Error(_), False -> {
+              let assert Ok(path) = uri.parse("/login")
+              modem.load(path)
+            }
+            _, _ -> effect.none()
+          }
+        False -> modem.push("/setup", option.None, option.None)
+      }
+      #(m, eff)
     }
     ServerSetupDone(Error(e)) -> {
       echo e
@@ -133,23 +136,45 @@ fn update(m: Model, msg: Msg) {
 }
 
 fn view(m: Model) {
-  case m.server_url {
-    option.None -> server_url_view(m)
-    option.Some(_) ->
+  case m.server_url, m.connecting {
+    option.None, _ | option.Some(_), True -> server_url_view(m)
+    option.Some(_), False ->
       case m.route {
         router.Login -> login.element()
         route ->
-          html.div([attribute.class("flex-1 flex flex-col p-4")], [
-            html.div(
+          html.div([attribute.class("")], [
+            html.nav(
               [
-                attribute.class(
-                  "inset-0 fx bg-zinc-950/50 backdrop-blur-md h-12",
+                attribute.class("z-50 bg-zinc-950/85 backdrop-blur-xl"),
+                case route {
+                  router.Reader(_) -> attribute.none()
+                  _ -> attribute.class("sticky top-0 left-0 right-0")
+                },
+              ],
+              [
+                html.div(
+                  [
+                    attribute.class(
+                      "max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4",
+                    ),
+                  ],
+                  [
+                    html.a([attribute.href("/")], [
+                      html.span(
+                        [
+                          attribute.class("self-center text-2xl font-extrabold"),
+                        ],
+                        [element.text("Lumiverse")],
+                      ),
+                    ]),
+                  ],
                 ),
               ],
-              [],
             ),
             case route {
               router.Home -> home.element()
+              router.Series(series_id) -> series.element([series.id(series_id)])
+              router.Reader(id) -> reader.element([reader.id(id)])
               _ -> html.div([], [element.text("Page not found.")])
             },
           ])
@@ -162,75 +187,80 @@ fn server_url_view(m: Model) {
     m.server_form |> form.add_values(fields) |> form.run |> ConnectToServer
   }
 
-  html.div([attribute.class("flex-1 flex items-center justify-center")], [
-    html.div(
-      [
-        attribute.class(
-          "border-t-5 border-sky-500 rounded-md bg-zinc-900 p-4 space-y-4",
-        ),
-      ],
-      [
-        html.form(
-          [
-            attribute.class("space-y-4"),
-            event.on_submit(submitted),
-          ],
-          [
-            html.div([attribute.class("flex flex-col gap-1")], [
-              html.label([attribute.class("text-sm text-zinc-300")], [
-                element.text("Kavita URL:"),
-              ]),
-              html.input([
-                attribute.class(
-                  "bg-zinc-700 rounded-md p-1 text-zinc-200 outline-none border-b-5 border-zinc-700 focus:border-sky-600",
+  html.div(
+    [
+      attribute.class("w-screen h-screen flex items-center justify-center"),
+    ],
+    [
+      html.div(
+        [
+          attribute.class(
+            "border-t-5 border-sky-500 rounded-md bg-zinc-900 p-4 space-y-4",
+          ),
+        ],
+        [
+          html.form(
+            [
+              attribute.class("space-y-4"),
+              event.on_submit(submitted),
+            ],
+            [
+              html.div([attribute.class("flex flex-col gap-1")], [
+                html.label([attribute.class("text-sm text-zinc-300")], [
+                  element.text("Kavita URL:"),
+                ]),
+                html.input([
+                  attribute.class(
+                    "bg-zinc-700 rounded-md p-1 text-zinc-200 outline-none border-b-5 border-zinc-700 focus:border-sky-600",
+                  ),
+                  attribute.name("server_url"),
+                ]),
+                html.small(
+                  [attribute.class("text-zinc-400")],
+                  list.map(
+                    form.field_error_messages(m.server_form, "server_url"),
+                    element.text,
+                  ),
                 ),
-                attribute.name("server_url"),
               ]),
-              html.small(
-                [attribute.class("text-zinc-400")],
-                list.map(
-                  form.field_error_messages(m.server_form, "server_url"),
-                  element.text,
-                ),
+              html.button(
+                [
+                  attribute.class(
+                    "relative flex justify-center items-center rounded-md px-4 py-2 font-bold transition outline-none",
+                  ),
+                  case m.connecting {
+                    False -> attribute.class("bg-sky-500")
+                    True -> attribute.class("bg-sky-700")
+                  },
+                ],
+                [
+                  html.span(
+                    [
+                      case m.connecting {
+                        False -> attribute.none()
+                        True -> attribute.class("invisible")
+                      },
+                    ],
+                    [element.text("Connect")],
+                  ),
+                  html.div(
+                    [
+                      attribute.class("absolute flex w-fit animate-spin"),
+                      case m.connecting {
+                        False -> attribute.class("invisible")
+                        True -> attribute.none()
+                      },
+                    ],
+                    [
+                      html.i([attribute.class("ph ph-circle-notch")], []),
+                    ],
+                  ),
+                ],
               ),
-            ]),
-            html.button(
-              [
-                attribute.class(
-                  "relative flex justify-center items-center rounded-md px-4 py-2 font-bold transition outline-none",
-                ),
-                case m.connecting {
-                  False -> attribute.class("bg-sky-500")
-                  True -> attribute.class("bg-sky-700")
-                },
-              ],
-              [
-                html.span(
-                  [
-                    case m.connecting {
-                      False -> attribute.none()
-                      True -> attribute.class("invisible")
-                    },
-                  ],
-                  [element.text("Connect")],
-                ),
-                html.div(
-                  [
-                    attribute.class("absolute flex w-fit animate-spin"),
-                    case m.connecting {
-                      False -> attribute.class("invisible")
-                      True -> attribute.none()
-                    },
-                  ],
-                  [
-                    html.i([attribute.class("ph ph-circle-notch")], []),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ],
-    ),
-  ])
+            ],
+          ),
+        ],
+      ),
+    ],
+  )
 }

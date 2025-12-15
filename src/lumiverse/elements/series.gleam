@@ -1,47 +1,15 @@
 import gleam/int
-import gleam/list
-import gleam/option
+import lumiverse/api/account
+import lumiverse/api/api
+import lumiverse/api/series
 import lustre/attribute
 import lustre/element
 import lustre/element/html
 
-import lumiverse/layout
-import lumiverse/model
-import lumiverse/models/series
-import router
-
-pub fn series_list(serieslist: List(element.Element(layout.Msg)), title: String) {
-  html.div([attribute.class("space-y-3")], [
-    html.h1(
-      [
-        attribute.class(
-          "text-lg sm:text-3xl font-bold sm:font-extrabold font-['Poppins']",
-        ),
-      ],
-      [element.text(title)],
-    ),
-    html.div(
-      [
-        attribute.class(
-          "flex flex-nowrap space-x-5 w-full flex gap-4 snap-x snap-mandatory overflow-x-auto",
-        ),
-      ],
-      serieslist,
-    ),
-  ])
-}
-
-pub fn placeholder_series_list() {
-  series_list(list.repeat(placeholder_card(), 5), "")
-}
-
-pub fn card(
-  model: model.Model,
-  srs: series.MinimalInfo,
-) -> element.Element(layout.Msg) {
-  let assert option.Some(user) = model.user
+pub fn card(srs: series.SeriesMinimal) {
+  let user = account.get()
   let cover_url =
-    router.direct(
+    api.create_url(
       "/api/image/series-cover?seriesId="
       <> int.to_string(srs.id)
       <> "&apiKey="
@@ -62,22 +30,22 @@ pub fn card(
   ])
 }
 
-pub fn placeholder_card() {
-  html.div([attribute.class("space-y-4")], [
+pub fn card_placeholder() {
+  html.div([attribute.class("snap-start sm:w-48 w-24 space-y-2")], [
     html.div(
       [
         attribute.class(
-          "animate-pulse rounded-lg bg-zinc-800 sm:w-48 w-24 h-72",
+          "rounded bg-zinc-800 w-full object-cover sm:h-72 h-44 animate-pulse",
         ),
       ],
       [],
     ),
     html.div(
-      [attribute.class("animate-pulse rounded-none bg-zinc-800 w-full h-4")],
-      [],
-    ),
-    html.div(
-      [attribute.class("animate-pulse rounded-none bg-zinc-800 w-1/2 h-4")],
+      [
+        attribute.class(
+          "bg-zinc-800 font-medium h-6 w-36 text-xs md:text-base animate-pulse",
+        ),
+      ],
       [],
     ),
   ])

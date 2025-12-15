@@ -14,7 +14,7 @@ pub fn button(
   html.button(
     [
       attribute.class(
-        "rounded-md flex p-2 items-center justify-center transition hover:opacity-80 active:scale-[95%]",
+        "rounded flex p-2 gap-2 items-center justify-center transition hover:opacity-80 active:scale-[95%] outline-none",
       ),
       ..attrs
     ],
@@ -24,8 +24,20 @@ pub fn button(
 
 pub fn bg(color: Color) -> attribute.Attribute(a) {
   case color {
-    Primary -> "bg-sky-500"
+    Primary -> "bg-violet-500"
     Neutral -> "bg-zinc-500"
   }
   |> attribute.class
+}
+
+pub fn sm() {
+  attribute.class("rounded px-3.5 py-1.5 text-sm")
+}
+
+pub fn md() {
+  attribute.class("rounded px-4 py-2 text-base")
+}
+
+pub fn lg() {
+  attribute.class("rounded px-5 py-2.5 text-lg")
 }

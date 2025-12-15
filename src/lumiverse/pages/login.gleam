@@ -1,5 +1,6 @@
 import formal/form
 import gleam/bool
+import gleam/json
 import gleam/list
 import gleam/option
 import localstorage
@@ -37,7 +38,11 @@ pub fn register() {
 pub fn element() {
   element.element(
     "login-page",
-    [attribute.class("flex-1 flex flex-col justify-center items-center")],
+    [
+      attribute.class(
+        "w-screen h-screen flex flex-col justify-center items-center",
+      ),
+    ],
     [],
   )
 }
@@ -84,7 +89,17 @@ fn update(m: Model, msg: Msg) {
       account.login(login.username, login.password, LoginResponse),
     )
     LoginSubmitted(Error(form)) -> #(Model(..m, form:), effect.none())
-    LoginResponse(Ok(_account)) -> {
+    LoginResponse(Ok(account)) -> {
+      localstorage.write(
+        "user",
+        json.object([
+          #("username", json.string(account.username)),
+          #("token", json.string(account.token)),
+          #("refresh_token", json.string(account.refresh_token)),
+          #("api_key", json.string(account.api_key)),
+        ])
+          |> json.to_string,
+      )
       #(m, modem.push("/", option.None, option.None))
     }
     LoginResponse(Error(e)) -> {
@@ -145,7 +160,7 @@ fn view(m: Model) {
                     ),
                     html.input([
                       attribute.class(
-                        "bg-zinc-700 rounded-md p-1 text-zinc-200 outline-none border-b-5 border-zinc-700 focus:border-sky-600",
+                        "bg-zinc-700 rounded-md p-1 text-zinc-200 outline-none border-b-5 border-zinc-700 focus:border-violet-600",
                       ),
                       attribute.name("username"),
                       attribute.autocomplete("username"),
@@ -170,7 +185,7 @@ fn view(m: Model) {
                     ),
                     html.input([
                       attribute.class(
-                        "bg-zinc-700 rounded-md p-1 text-zinc-200 outline-none border-b-5 border-zinc-700 focus:border-sky-600",
+                        "bg-zinc-700 rounded-md p-1 text-zinc-200 outline-none border-b-5 border-zinc-700 focus:border-violet-600",
                       ),
                       attribute.name("password"),
                       attribute.type_("password"),
@@ -190,25 +205,23 @@ fn view(m: Model) {
                 ],
               )
           },
-          case
-            { oidc.enabled && bool.negate(oidc.disable_password_auth) }
-            |> bool.negate
-          {
+          case { oidc.enabled && bool.negate(oidc.disable_password_auth) } {
             True ->
               html.div([attribute.class("relative flex items-center")], [
                 html.hr([
-                  attribute.class("flex-grow border-t border-sky-400"),
+                  attribute.class("flex-grow border-t border-violet-400"),
                 ]),
-                html.span([attribute.class("mx-2 text-sky-400")], [
+                html.span([attribute.class("mx-2 text-violet-400")], [
                   element.text("or"),
                 ]),
                 html.hr([
-                  attribute.class("flex-grow border-t border-sky-400"),
+                  attribute.class("flex-grow border-t border-violet-400"),
                 ]),
               ])
             False -> element.none()
           },
-          case True {
+          case oidc.enabled {
+            False -> element.none()
             True ->
               button.button(
                 [button.bg(button.Neutral), attribute.class("w-full")],
@@ -247,7 +260,7 @@ fn container(contents: List(element.Element(a))) -> element.Element(a) {
       html.div(
         [
           attribute.class(
-            "rounded-md bg-zinc-900 border-t-5 border-sky-500 md:px-9 md:py-6 p-4 space-y-4",
+            "rounded-md bg-zinc-900 border-t-5 border-violet-500 md:px-9 md:py-6 p-4 space-y-4",
           ),
         ],
         contents,

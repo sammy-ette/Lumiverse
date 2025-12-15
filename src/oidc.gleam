@@ -1,5 +1,4 @@
 import gleam/javascript/promise
-import lumiverse/layout
 import lustre/effect
 
 @external(javascript, "./oidc.ffi.mjs", "signin")
@@ -11,8 +10,8 @@ fn signin_js(
 pub fn signin(
   authority: String,
   client_id: String,
-  on_result handle_result: fn(Result(String, Nil)) -> layout.Msg,
-) -> effect.Effect(layout.Msg) {
+  on_result handle_result: fn(Result(String, Nil)) -> msg,
+) -> effect.Effect(msg) {
   use dispatch <- effect.from
 
   let _ =

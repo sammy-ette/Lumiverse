@@ -1,7 +1,6 @@
 import gleam/javascript/array
 import gleam/javascript/promise
 import gleam/list
-import lumiverse/layout
 import lustre/effect
 
 @external(javascript, "./form.ffi.mjs", "submit")
@@ -13,8 +12,8 @@ fn submit_js(
 pub fn submit(
   element_id: String,
   headers: List(List(String)),
-  on_result handle_result: fn(Result(Nil, Nil)) -> layout.Msg,
-) -> effect.Effect(layout.Msg) {
+  on_result handle_result: fn(Result(Nil, Nil)) -> msg,
+) -> effect.Effect(msg) {
   use dispatch <- effect.from
 
   let _ =
