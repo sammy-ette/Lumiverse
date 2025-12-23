@@ -30,6 +30,22 @@ pub fn card(srs: series.SeriesMinimal) {
   ])
 }
 
+pub fn cover_image(
+  srs: series.SeriesMinimal,
+  attrs: List(attribute.Attribute(a)),
+) {
+  let user = account.get()
+  let cover_url =
+    api.create_url(
+      "/api/image/series-cover?seriesId="
+      <> int.to_string(srs.id)
+      <> "&apiKey="
+      <> user.api_key,
+    )
+
+  html.img([attribute.src(cover_url), ..attrs])
+}
+
 pub fn card_placeholder() {
   html.div([attribute.class("snap-start sm:w-48 w-24 space-y-2")], [
     html.div(

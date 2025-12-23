@@ -1,4 +1,5 @@
 import gleam/int
+import gleam/javascript/array
 import gleam/list
 import gleam/option
 import gleam/order
@@ -15,6 +16,9 @@ import lustre/element
 import lustre/element/html
 import lustre/event
 import modem
+import plinth/browser/document
+import plinth/browser/element as plinth_element
+import plinth/browser/shadow
 import rsvp
 
 pub fn register() {
@@ -28,11 +32,7 @@ pub fn register() {
 }
 
 pub fn element(attrs: List(attribute.Attribute(a))) {
-  element.element(
-    "reader-page",
-    [attribute.class("flex-1 w-screen h-screen"), ..attrs],
-    [],
-  )
+  element.element("reader-page", [attribute.class("w-full"), ..attrs], [])
 }
 
 pub fn id(id: String) {
@@ -41,31 +41,36 @@ pub fn id(id: String) {
 
 pub type Model {
   Model(
+    id: Int,
     progress: option.Option(Result(reader.Progress, rsvp.Error)),
     cont_point: option.Option(reader.ContinuePoint),
     next_chapter: option.Option(Int),
     prev_chapter: option.Option(Int),
+    chapter_info: option.Option(reader.ChapterInfo),
   )
 }
 
 pub type Msg {
   ID(Int)
-  ProgressRetrieved(Result(reader.Progress, rsvp.Error))
-  ProgressUpdate(Result(Nil, rsvp.Error))
-  ContinuePointRetrieved(Result(reader.ContinuePoint, rsvp.Error))
-  PreviousChapter(Result(Int, rsvp.Error))
-  NextChapter(Result(Int, rsvp.Error))
   Next
   Previous
+  ProgressUpdate(Result(Nil, rsvp.Error))
+  PreviousChapter(Result(Int, rsvp.Error))
+  NextChapter(Result(Int, rsvp.Error))
+  ProgressRetrieved(Result(reader.Progress, rsvp.Error))
+  ContinuePointRetrieved(Result(reader.ContinuePoint, rsvp.Error))
+  ChapterInfoRetrieved(Result(reader.ChapterInfo, rsvp.Error))
 }
 
 pub fn init(_) {
   #(
     Model(
+      id: 0,
       progress: option.None,
       cont_point: option.None,
       prev_chapter: option.None,
       next_chapter: option.None,
+      chapter_info: option.None,
     ),
     effect.none(),
   )
@@ -75,30 +80,58 @@ pub fn update(m: Model, msg: Msg) {
   case msg {
     ID(id) -> {
       echo id
-      #(m, reader.progress(id, ProgressRetrieved))
+      #(
+        Model(..m, id:),
+        effect.batch([
+          reader.progress(id, ProgressRetrieved),
+        ]),
+      )
     }
     ProgressRetrieved(Ok(progress)) -> #(
       Model(..m, progress: option.Some(Ok(progress))),
-      effect.batch([
-        reader.prev_chapter(
-          progress.series_id,
-          progress.volume_id,
-          progress.chapter_id,
-          PreviousChapter,
-        ),
-        reader.next_chapter(
-          progress.series_id,
-          progress.volume_id,
-          progress.chapter_id,
-          PreviousChapter,
-        ),
-      ]),
+      reader.chapter_info(m.id, ChapterInfoRetrieved),
     )
+    ChapterInfoRetrieved(Ok(chapter_info)) -> {
+      let assert option.Some(Ok(progress)) = m.progress
+      let updated_progress =
+        reader.Progress(
+          ..progress,
+          series_id: chapter_info.series_id,
+          volume_id: chapter_info.volume_id,
+        )
+
+      let m =
+        Model(
+          ..m,
+          progress: option.Some(Ok(updated_progress)),
+          chapter_info: option.Some(chapter_info),
+        )
+
+      update_title(m)
+      #(
+        m,
+        effect.batch([
+          reader.continue_point(chapter_info.series_id, ContinuePointRetrieved),
+          reader.prev_chapter(
+            chapter_info.series_id,
+            chapter_info.volume_id,
+            m.id,
+            PreviousChapter,
+          ),
+          reader.next_chapter(
+            chapter_info.series_id,
+            chapter_info.volume_id,
+            m.id,
+            NextChapter,
+          ),
+        ]),
+      )
+    }
     ContinuePointRetrieved(Ok(cont_point)) -> {
       #(Model(..m, cont_point: option.Some(cont_point)), effect.none())
     }
     PreviousChapter(Ok(id)) -> #(
-      Model(..m, prev_chapter: case id {
+      Model(..m, prev_chapter: case echo id {
         -1 -> option.None
         _ -> option.Some(id)
       }),
@@ -122,6 +155,8 @@ pub fn update(m: Model, msg: Msg) {
             |> int.clamp(min: 0, max: cont_point.pages),
         )
 
+      scroll_reader()
+      update_title(m)
       #(
         Model(
           ..m,
@@ -131,7 +166,46 @@ pub fn update(m: Model, msg: Msg) {
         reader.save_progress(advanced_progress, ProgressUpdate),
       )
     }
-    Previous -> #(m, effect.none())
+    Previous -> {
+      echo "WAIT GO BACK"
+      let assert option.Some(Ok(current_progress)) = m.progress
+      echo current_progress.page_number - 1
+      echo m.prev_chapter
+      case current_progress.page_number - 1 {
+        -1 -> {
+          case m.prev_chapter {
+            option.None -> #(m, effect.none())
+            option.Some(prev_chapter) -> {
+              let assert Ok(prev_uri) =
+                uri.parse("/read/" <> int.to_string(prev_chapter))
+              #(m, modem.load(prev_uri))
+            }
+          }
+        }
+        num -> {
+          let assert option.Some(cont_point) = m.cont_point
+          let num = case current_progress.page_number == cont_point.pages {
+            True -> {
+              echo "going back twice"
+              num - 1
+            }
+            False -> num
+          }
+          let advanced_progress =
+            reader.Progress(..current_progress, page_number: num)
+          scroll_reader()
+          update_title(m)
+          #(
+            Model(
+              ..m,
+              progress: option.Some(Ok(advanced_progress)),
+              // reader_progress: option.Some(advanced_progress),
+            ),
+            reader.save_progress(advanced_progress, ProgressUpdate),
+          )
+        }
+      }
+    }
     ProgressUpdate(Ok(Nil)) -> {
       let assert option.Some(cont_point) = m.cont_point
       let assert option.Some(Ok(current_progress)) = m.progress
@@ -142,7 +216,7 @@ pub fn update(m: Model, msg: Msg) {
             option.None ->
               uri.parse("/series/" <> int.to_string(current_progress.series_id))
             option.Some(next_chapter) ->
-              uri.parse("/chapter/" <> int.to_string(next_chapter))
+              uri.parse("/read/" <> int.to_string(next_chapter))
           }
           #(
             Model(
@@ -266,7 +340,7 @@ fn reader(progress: reader.Progress) {
       // ),
       html.div(
         [
-          // event.on_click(layout.ReaderPrevious),
+          event.on_click(Previous),
           attribute.style("position", "absolute"),
           attribute.style("top", "0"),
           attribute.style("bottom", "0"),
@@ -325,5 +399,32 @@ fn reader(progress: reader.Progress) {
         )),
       ]),
     ],
+  )
+}
+
+fn scroll_reader() {
+  let assert Ok(elem) =
+    document.get_elements_by_tag_name("reader-page") |> array.get(0)
+  let assert Ok(shadow_root) = shadow.shadow_root(elem)
+
+  case shadow_root |> shadow.query_selector("#reader-img") {
+    Ok(reader_elem) -> plinth_element.scroll_into_view(reader_elem)
+    Error(_) -> Nil
+  }
+}
+
+fn update_title(m: Model) {
+  let assert option.Some(chapter_info) = m.chapter_info
+  let assert option.Some(Ok(progress)) = m.progress
+
+  document.set_title(
+    chapter_info.series_name
+    <> " - "
+    <> chapter_info.subtitle
+    <> " ("
+    <> progress.page_number |> int.to_string
+    <> "/"
+    <> chapter_info.pages |> int.to_string
+    <> ") | Lumiverse",
   )
 }

@@ -257,55 +257,55 @@ pub fn metadata_decoder() {
   ))
 }
 
-// pub fn metadata_to_json(metadata: Metadata) -> json.Json {
-//   json.object([
-//     #("id", json.int(metadata.id)),
-//     #("summary", json.string(metadata.summary)),
-//     #("genres", json.array(metadata.genres, of: tag_encoder)),
-//     #("tags", json.array(metadata.tags, of: tag_encoder)),
-//     #("publicationStatus", publication_encoder(metadata.publication_status)),
-//     #("seriesId", json.int(metadata.series_id)),
-//     #("writers", json.preprocessed_array([])),
-//     #("coverArtists", json.preprocessed_array([])),
-//     #("publishers", json.preprocessed_array([])),
-//     #("characters", json.preprocessed_array([])),
-//     #("pencillers", json.preprocessed_array([])),
-//     #("inkers", json.preprocessed_array([])),
-//     #("imprints", json.preprocessed_array([])),
-//     #("colorists", json.preprocessed_array([])),
-//     #("letterers", json.preprocessed_array([])),
-//     #("editors", json.preprocessed_array([])),
-//     #("translators", json.preprocessed_array([])),
-//     #("teams", json.preprocessed_array([])),
-//     #("locations", json.preprocessed_array([])),
-//     #("ageRating", json.int(metadata.age_rating)),
-//     #("releaseYear", json.int(metadata.release_year)),
-//     #("language", json.string(metadata.language)),
-//     #("maxCount", json.int(metadata.max_count)),
-//     #("totalCount", json.int(metadata.total_count)),
-//     #("webLinks", json.string(metadata.web_links)),
-//     #("languageLocked", json.bool(metadata.language_locked)),
-//     #("summaryLocked", json.bool(metadata.summary_locked)),
-//     #("ageRatingLocked", json.bool(metadata.age_rating_locked)),
-//     #("publicationStatusLocked", json.bool(metadata.publication_status_locked)),
-//     #("genresLocked", json.bool(metadata.genres_locked)),
-//     #("tagsLocked", json.bool(metadata.tags_locked)),
-//     #("writerLocked", json.bool(metadata.writer_locked)),
-//     #("characterLocked", json.bool(metadata.character_locked)),
-//     #("coloristLocked", json.bool(metadata.colorist_locked)),
-//     #("editorLocked", json.bool(metadata.editor_locked)),
-//     #("inkerLocked", json.bool(metadata.inker_locked)),
-//     #("imprintLocked", json.bool(metadata.imprint_locked)),
-//     #("lettererLocked", json.bool(metadata.letterer_locked)),
-//     #("pencillerLocked", json.bool(metadata.penciller_locked)),
-//     #("publisherLocked", json.bool(metadata.publisher_locked)),
-//     #("translatorLocked", json.bool(metadata.translator_locked)),
-//     #("teamLocked", json.bool(metadata.team_locked)),
-//     #("locationLocked", json.bool(metadata.location_locked)),
-//     #("coverArtistLocked", json.bool(metadata.cover_artist_locked)),
-//     #("releaseYearLocked", json.bool(metadata.release_year_locked)),
-//   ])
-// }
+pub fn metadata_to_json(metadata: Metadata) -> json.Json {
+  json.object([
+    #("id", json.int(metadata.id)),
+    #("summary", json.string(metadata.summary)),
+    #("genres", json.array(metadata.genres, of: tag_encoder)),
+    #("tags", json.array(metadata.tags, of: tag_encoder)),
+    #("seriesId", json.int(metadata.series_id)),
+    #("writers", json.preprocessed_array([])),
+    #("coverArtists", json.preprocessed_array([])),
+    #("publishers", json.preprocessed_array([])),
+    #("characters", json.preprocessed_array([])),
+    #("pencillers", json.preprocessed_array([])),
+    #("inkers", json.preprocessed_array([])),
+    #("imprints", json.preprocessed_array([])),
+    #("colorists", json.preprocessed_array([])),
+    #("letterers", json.preprocessed_array([])),
+    #("editors", json.preprocessed_array([])),
+    #("translators", json.preprocessed_array([])),
+    #("teams", json.preprocessed_array([])),
+    #("locations", json.preprocessed_array([])),
+    #("ageRating", json.int(metadata.age_rating)),
+    #("releaseYear", json.int(metadata.release_year)),
+    #("language", json.string(metadata.language)),
+    #("maxCount", json.int(metadata.max_count)),
+    #("totalCount", json.int(metadata.total_count)),
+    #("webLinks", json.string(metadata.web_links)),
+    #("languageLocked", json.bool(metadata.language_locked)),
+    #("summaryLocked", json.bool(metadata.summary_locked)),
+    #("ageRatingLocked", json.bool(metadata.age_rating_locked)),
+    #("publicationStatus", publication_to_json(metadata.publication_status)),
+    #("publicationStatusLocked", json.bool(metadata.publication_status_locked)),
+    #("genresLocked", json.bool(metadata.genres_locked)),
+    #("tagsLocked", json.bool(metadata.tags_locked)),
+    #("writerLocked", json.bool(metadata.writer_locked)),
+    #("characterLocked", json.bool(metadata.character_locked)),
+    #("coloristLocked", json.bool(metadata.colorist_locked)),
+    #("editorLocked", json.bool(metadata.editor_locked)),
+    #("inkerLocked", json.bool(metadata.inker_locked)),
+    #("imprintLocked", json.bool(metadata.imprint_locked)),
+    #("lettererLocked", json.bool(metadata.letterer_locked)),
+    #("pencillerLocked", json.bool(metadata.penciller_locked)),
+    #("publisherLocked", json.bool(metadata.publisher_locked)),
+    #("translatorLocked", json.bool(metadata.translator_locked)),
+    #("teamLocked", json.bool(metadata.team_locked)),
+    #("locationLocked", json.bool(metadata.location_locked)),
+    #("coverArtistLocked", json.bool(metadata.cover_artist_locked)),
+    #("releaseYearLocked", json.bool(metadata.release_year_locked)),
+  ])
+}
 
 pub type Publication {
   Ongoing
@@ -316,6 +316,17 @@ pub type Publication {
 
   Unknown
   Invalid
+}
+
+fn publication_to_json(publication: Publication) -> json.Json {
+  case publication {
+    Ongoing -> json.int(0)
+    Hiatus -> json.int(1)
+    Completed -> json.int(2)
+    Cancelled -> json.int(3)
+    Ended -> json.int(4)
+    _ -> json.int(0)
+  }
 }
 
 fn dynamic_publication(
@@ -421,4 +432,52 @@ pub fn metadata(id: Int, resp: api.Response(Metadata, a)) {
     |> request.set_header("Content-Type", "application/json")
 
   rsvp.send(req, rsvp.expect_json(metadata_decoder(), resp))
+}
+
+pub fn update_metadata(metadata: Metadata, resp: api.Response(Nil, a)) {
+  let assert Ok(req) = request.to(api.create_url("/api/series/metadata"))
+
+  let req =
+    req
+    |> request.set_method(http.Post)
+    |> request.set_body(
+      json.object([#("seriesMetadata", metadata_to_json(metadata))])
+      |> json.to_string,
+    )
+    |> request.set_header("Authorization", "Bearer " <> account.token())
+    |> request.set_header("Accept", "application/json")
+    |> request.set_header("Content-Type", "application/json")
+
+  rsvp.send(req, api.expect_ok_response(resp))
+}
+
+pub fn tags(resp: api.Response(List(Tag), a)) {
+  let assert Ok(req) = request.to(api.create_url("/api/metadata/tags"))
+
+  let req =
+    req
+    |> request.set_method(http.Get)
+    |> request.set_body(json.object([]) |> json.to_string)
+    |> request.set_header("Authorization", "Bearer " <> account.token())
+    |> request.set_header("Accept", "application/json")
+    |> request.set_header("Content-Type", "application/json")
+
+  rsvp.send(req, rsvp.expect_json(decode.list(tag_decoder()), resp))
+}
+
+pub fn details(series_id: Int, resp: api.Response(Details, a)) {
+  let assert Ok(req) =
+    request.to(api.create_url(
+      "/api/series/series-detail?seriesId=" <> int.to_string(series_id),
+    ))
+
+  let req =
+    req
+    |> request.set_method(http.Get)
+    |> request.set_body(json.object([]) |> json.to_string)
+    |> request.set_header("Authorization", "Bearer " <> account.token())
+    |> request.set_header("Accept", "application/json")
+    |> request.set_header("Content-Type", "application/json")
+
+  rsvp.send(req, rsvp.expect_json(details_decoder(), resp))
 }

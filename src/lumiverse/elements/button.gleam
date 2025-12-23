@@ -14,7 +14,7 @@ pub fn button(
   html.button(
     [
       attribute.class(
-        "rounded flex p-2 gap-2 items-center justify-center transition hover:opacity-80 active:scale-[95%] outline-none",
+        "rounded flex gap-2 items-center justify-center transition hover:opacity-80 active:scale-[95%] outline-none",
       ),
       ..attrs
     ],

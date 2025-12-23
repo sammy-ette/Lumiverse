@@ -16,16 +16,16 @@ pub const explicit = [
 
 pub const beware = ["suggestive", "ecchi", "beware-test-tag"]
 
-pub const tag_appearance = "font-[Poppins,sans-serif] uppercase font-semibold text-[0.7rem]"
+pub const tag_appearance = "font-[Poppins,sans-serif] uppercase font-semibold text-[0.7rem] hover:brightness-120 cursor-pointer"
 
 pub fn list(tags: List(series.Tag)) {
   html.div(
     [attribute.class("inline-flex flex-wrap gap-2")],
-    list.map(sort(tags), single),
+    list.map(sort(tags), fn(t) { single(t, []) }),
   )
 }
 
-pub fn single(tag: series.Tag) {
+pub fn single(tag: series.Tag, attrs: List(attribute.Attribute(a))) {
   html.div(
     [
       attribute.class(tag_appearance),
@@ -33,6 +33,7 @@ pub fn single(tag: series.Tag) {
         "flex relative group h-fit self-center items-center justify-center rounded py-0.5 px-1",
       ),
       color(tag.title),
+      ..attrs
     ],
     [html.span([], [element.text(tag.title)])],
   )
@@ -48,6 +49,22 @@ pub fn simple(tag: String, attrs: List(attribute.Attribute(a))) {
       ..attrs
     ],
     [html.span([], [element.text(tag)])],
+  )
+}
+
+pub fn element(
+  attrs: List(attribute.Attribute(a)),
+  elems: List(element.Element(a)),
+) {
+  html.div(
+    [
+      attribute.class(tag_appearance),
+      attribute.class(
+        "flex relative group h-fit self-center items-center justify-center rounded py-0.5 px-1",
+      ),
+      ..attrs
+    ],
+    elems,
   )
 }
 
@@ -71,7 +88,7 @@ pub fn color(tag: String) {
   |> attribute.class
 }
 
-fn sort(tags: List(series.Tag)) {
+pub fn sort(tags: List(series.Tag)) {
   list.sort(tags, tag_compare)
 }
 

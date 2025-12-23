@@ -1,10 +1,14 @@
 import formal/form
 import gleam/http/response
+import gleam/json
 import gleam/list
 import gleam/option
 import gleam/uri
 import localstorage
+import lumiverse/api/account
 import lumiverse/api/api
+import lumiverse/elements/button
+import lumiverse/elements/tag
 import lumiverse/pages/home
 import lumiverse/pages/login
 import lumiverse/pages/reader
@@ -26,7 +30,7 @@ type Model {
     connecting: Bool,
     server_form: form.Form(String),
     server_setup_done: option.Option(Bool),
-    oidc_config: option.Option(api.OIDC),
+    roles: List(account.Role),
   )
 }
 
@@ -35,6 +39,7 @@ pub type Msg {
   ConnectToServer(Result(String, form.Form(String)))
   ServerHealth(Result(response.Response(String), rsvp.Error))
   ServerSetupDone(Result(Bool, rsvp.Error))
+  RolesRetrieved(Result(List(account.Role), rsvp.Error))
 }
 
 pub fn main() {
@@ -82,7 +87,7 @@ fn init(_) {
       connecting: False,
       server_form:,
       server_setup_done: option.None,
-      oidc_config: option.None,
+      roles: [],
     ),
     effect.batch([
       modem.init(fn(url) { router.uri_to_route(url) |> ChangeRoute }),
@@ -122,7 +127,7 @@ fn update(m: Model, msg: Msg) {
               let assert Ok(path) = uri.parse("/login")
               modem.load(path)
             }
-            _, _ -> effect.none()
+            _, _ -> account.roles(RolesRetrieved)
           }
         False -> modem.push("/setup", option.None, option.None)
       }
@@ -132,6 +137,8 @@ fn update(m: Model, msg: Msg) {
       echo e
       #(m, effect.none())
     }
+    RolesRetrieved(Ok(roles)) -> #(Model(..m, roles:), effect.none())
+    RolesRetrieved(Error(_)) -> #(m, effect.none())
   }
 }
 
@@ -142,42 +149,87 @@ fn view(m: Model) {
       case m.route {
         router.Login -> login.element()
         route ->
-          html.div([attribute.class("")], [
-            html.nav(
-              [
-                attribute.class("z-50 bg-zinc-950/85 backdrop-blur-xl"),
-                case route {
-                  router.Reader(_) -> attribute.none()
-                  _ -> attribute.class("sticky top-0 left-0 right-0")
-                },
-              ],
-              [
-                html.div(
-                  [
-                    attribute.class(
-                      "max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4",
-                    ),
-                  ],
-                  [
-                    html.a([attribute.href("/")], [
-                      html.span(
-                        [
-                          attribute.class("self-center text-2xl font-extrabold"),
-                        ],
-                        [element.text("Lumiverse")],
+          html.div(
+            [
+              attribute.class("w-full flex flex-col"),
+            ],
+            [
+              html.nav(
+                [
+                  attribute.class(
+                    "z-50 bg-zinc-950/85 backdrop-blur-xl border-b border-zinc-600",
+                  ),
+                  case route {
+                    router.Reader(_) -> attribute.none()
+                    _ -> attribute.class("sticky top-0 left-0 right-0")
+                  },
+                ],
+                [
+                  html.div(
+                    [
+                      attribute.class(
+                        "flex flex-wrap items-center justify-between p-4",
                       ),
-                    ]),
-                  ],
-                ),
-              ],
-            ),
-            case route {
-              router.Home -> home.element()
-              router.Series(series_id) -> series.element([series.id(series_id)])
-              router.Reader(id) -> reader.element([reader.id(id)])
-              _ -> html.div([], [element.text("Page not found.")])
-            },
-          ])
+                    ],
+                    [
+                      html.a([attribute.href("/")], [
+                        html.span(
+                          [
+                            attribute.class(
+                              "self-center text-2xl font-extrabold flex gap-2",
+                            ),
+                          ],
+                          [
+                            element.text("Lumiverse"),
+                            tag.simple("Beta", [
+                              attribute.class("bg-violet-500"),
+                            ]),
+                          ],
+                        ),
+                      ]),
+                      html.div(
+                        [attribute.class("flex gap-3")],
+                        case m.roles |> list.contains(account.Admin) {
+                          False -> [element.none()]
+                          True -> [
+                            button.button([], [
+                              html.i(
+                                [
+                                  attribute.class(
+                                    "ph ph-arrow-clockwise text-3xl",
+                                  ),
+                                ],
+                                [],
+                              ),
+                            ]),
+                            button.button([], [
+                              html.i(
+                                [attribute.class("ph ph-gear-six text-3xl")],
+                                [],
+                              ),
+                            ]),
+                          ]
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              case route {
+                router.Home -> home.element()
+                router.Series(series_id) ->
+                  series.element([
+                    series.id(series_id),
+                    attribute.property(
+                      "admin",
+                      json.bool(m.roles |> list.contains(account.Admin)),
+                    ),
+                  ])
+                router.Reader(id) -> reader.element([reader.id(id)])
+                _ -> html.div([], [element.text("Page not found.")])
+              },
+            ],
+          )
       }
   }
 }

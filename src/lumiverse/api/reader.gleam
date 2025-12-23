@@ -49,6 +49,7 @@ pub type ChapterInfo {
   ChapterInfo(
     volume_id: Int,
     series_id: Int,
+    series_name: String,
     library_id: Int,
     pages: Int,
     subtitle: String,
@@ -58,12 +59,14 @@ pub type ChapterInfo {
 fn chapter_info_decoder() {
   use volume_id <- decode.field("volumeId", decode.int)
   use series_id <- decode.field("seriesId", decode.int)
+  use series_name <- decode.field("seriesName", decode.string)
   use library_id <- decode.field("libraryId", decode.int)
   use pages <- decode.field("pages", decode.int)
   use subtitle <- decode.field("subtitle", decode.string)
   decode.success(ChapterInfo(
     volume_id:,
     series_id:,
+    series_name:,
     library_id:,
     pages:,
     subtitle:,
@@ -162,10 +165,10 @@ pub fn next_chapter(
 
   rsvp.send(
     req,
-    rsvp.expect_text(fn(res) {
-      case res {
-        Ok(num_str) -> {
-          int.parse(num_str)
+    rsvp.expect_any_response(fn(res) {
+      case echo res {
+        Ok(response) -> {
+          int.parse(response.body)
           |> result.map_error(fn(_) { rsvp.BadBody })
           |> resp
         }
@@ -201,10 +204,10 @@ pub fn prev_chapter(
 
   rsvp.send(
     req,
-    rsvp.expect_text(fn(res) {
-      case res {
-        Ok(num_str) -> {
-          int.parse(num_str)
+    rsvp.expect_any_response(fn(res) {
+      case echo res {
+        Ok(response) -> {
+          int.parse(response.body)
           |> result.map_error(fn(_) { rsvp.BadBody })
           |> resp
         }

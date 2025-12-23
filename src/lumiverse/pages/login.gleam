@@ -3,6 +3,7 @@ import gleam/bool
 import gleam/json
 import gleam/list
 import gleam/option
+import gleam/uri
 import localstorage
 import lumiverse/api/account
 import lumiverse/api/api
@@ -100,7 +101,10 @@ fn update(m: Model, msg: Msg) {
         ])
           |> json.to_string,
       )
-      #(m, modem.push("/", option.None, option.None))
+      #(m, {
+        let assert Ok(url) = uri.parse("/")
+        modem.load(url)
+      })
     }
     LoginResponse(Error(e)) -> {
       case echo e {

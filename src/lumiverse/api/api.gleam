@@ -25,6 +25,15 @@ pub fn health(server: String, s: Response(response.Response(String), b)) {
   )
 }
 
+pub fn expect_ok_response(handler: fn(Result(Nil, rsvp.Error)) -> a) {
+  rsvp.expect_ok_response(fn(res) {
+    case res {
+      Ok(_) -> handler(Ok(Nil))
+      Error(e) -> handler(Error(e))
+    }
+  })
+}
+
 pub fn setup_done(s: Response(Bool, b)) {
   rsvp.get(create_url("/api/admin/exists"), rsvp.expect_json(decode.bool, s))
 }
