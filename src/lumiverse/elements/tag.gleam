@@ -26,30 +26,18 @@ pub fn list(tags: List(series.Tag)) {
 }
 
 pub fn single(tag: series.Tag, attrs: List(attribute.Attribute(a))) {
-  html.div(
-    [
-      attribute.class(tag_appearance),
-      attribute.class(
-        "flex relative group h-fit self-center items-center justify-center rounded py-0.5 px-1",
-      ),
-      color(tag.title),
-      ..attrs
-    ],
-    [html.span([], [element.text(tag.title)])],
-  )
+  case tag.title |> string.lowercase {
+    "staff pick" ->
+      element([attribute.class("bg-violet-500 gap-1"), ..attrs], [
+        html.i([attribute.class("ph-fill ph-star")], []),
+        element.text(tag.title),
+      ])
+    _ -> simple(tag.title, [color(tag.title), ..attrs])
+  }
 }
 
 pub fn simple(tag: String, attrs: List(attribute.Attribute(a))) {
-  html.div(
-    [
-      attribute.class(tag_appearance),
-      attribute.class(
-        "flex relative group h-fit self-center items-center justify-center rounded py-0.5 px-1",
-      ),
-      ..attrs
-    ],
-    [html.span([], [element.text(tag)])],
-  )
+  element(attrs, [element.text(tag)])
 }
 
 pub fn element(
@@ -93,12 +81,16 @@ pub fn sort(tags: List(series.Tag)) {
 }
 
 fn tag_compare(a: series.Tag, b: series.Tag) -> order.Order {
-  case compare_in_list(a.title, b.title, special) {
+  case compare_in_list(a.title, b.title, ["staff pick"]) {
     order.Eq ->
-      case compare_in_list(a.title, b.title, explicit) {
+      case compare_in_list(a.title, b.title, special) {
         order.Eq ->
-          case compare_in_list(a.title, b.title, beware) {
-            order.Eq -> string.compare(a.title, b.title)
+          case compare_in_list(a.title, b.title, explicit) {
+            order.Eq ->
+              case compare_in_list(a.title, b.title, beware) {
+                order.Eq -> string.compare(a.title, b.title)
+                res -> res
+              }
             res -> res
           }
         res -> res

@@ -11,3 +11,6 @@ pub fn logo() -> String {
 pub fn name() -> String {
   "Lumiverse"
 }
+
+@external(javascript, "./config.ffi.mjs", "get")
+pub fn get(_field: String) -> String

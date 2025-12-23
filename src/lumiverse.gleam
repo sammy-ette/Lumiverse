@@ -7,6 +7,8 @@ import gleam/uri
 import localstorage
 import lumiverse/api/account
 import lumiverse/api/api
+import lumiverse/api/library
+import lumiverse/config
 import lumiverse/elements/button
 import lumiverse/elements/tag
 import lumiverse/pages/home
@@ -40,6 +42,8 @@ pub type Msg {
   ServerHealth(Result(response.Response(String), rsvp.Error))
   ServerSetupDone(Result(Bool, rsvp.Error))
   RolesRetrieved(Result(List(account.Role), rsvp.Error))
+  ScanAll
+  ScanDone(Result(Nil, rsvp.Error))
 }
 
 pub fn main() {
@@ -72,7 +76,10 @@ fn init(_) {
   //       False -> option.None
   //     }
   // }
-  let server_url = localstorage.read("server_url") |> option.from_result
+  let server_url = case config.get("SERVER_URL") {
+    "" -> localstorage.read("server_url") |> option.from_result
+    server_url -> option.Some(server_url)
+  }
   let server_form =
     form.new({
       use server_url <- form.field("server_url", form.parse_url)
@@ -139,11 +146,13 @@ fn update(m: Model, msg: Msg) {
     }
     RolesRetrieved(Ok(roles)) -> #(Model(..m, roles:), effect.none())
     RolesRetrieved(Error(_)) -> #(m, effect.none())
+    ScanAll -> #(m, library.scan_all(ScanDone))
+    ScanDone(_) -> #(m, effect.none())
   }
 }
 
 fn view(m: Model) {
-  case m.server_url, m.connecting {
+  case echo m.server_url, m.connecting {
     option.None, _ | option.Some(_), True -> server_url_view(m)
     option.Some(_), False ->
       case m.route {
@@ -192,7 +201,7 @@ fn view(m: Model) {
                         case m.roles |> list.contains(account.Admin) {
                           False -> [element.none()]
                           True -> [
-                            button.button([], [
+                            button.button([event.on_click(ScanAll)], [
                               html.i(
                                 [
                                   attribute.class(
