@@ -15,6 +15,8 @@ import lumiverse/pages/home
 import lumiverse/pages/login
 import lumiverse/pages/reader
 import lumiverse/pages/series
+import lumiverse/pages/settings
+import lumiverse/pages/setup
 import lustre
 import lustre/attribute
 import lustre/effect
@@ -48,10 +50,18 @@ pub type Msg {
 
 pub fn main() {
   let app = lustre.application(init, update, view)
+  let assert Ok(_) = setup.register()
   let assert Ok(_) = login.register()
-  let assert Ok(_) = home.register()
-  let assert Ok(_) = series.register()
-  let assert Ok(_) = reader.register()
+  case localstorage.read("user") {
+    Ok(_user) -> {
+      let assert Ok(_) = home.register()
+      let assert Ok(_) = series.register()
+      let assert Ok(_) = reader.register()
+      let assert Ok(_) = settings.register()
+      Nil
+    }
+    Error(_) -> Nil
+  }
   let assert Ok(_) = lustre.start(app, "#app", Nil)
 }
 
@@ -157,10 +167,11 @@ fn view(m: Model) {
     option.Some(_), False ->
       case m.route {
         router.Login -> login.element()
+        router.Setup -> setup.element()
         route ->
           html.div(
             [
-              attribute.class("w-full flex flex-col"),
+              attribute.class("w-full min-h-screen flex flex-col"),
             ],
             [
               html.nav(
@@ -211,11 +222,13 @@ fn view(m: Model) {
                                 [],
                               ),
                             ]),
-                            button.button([], [
-                              html.i(
-                                [attribute.class("ph ph-gear-six text-3xl")],
-                                [],
-                              ),
+                            html.a([attribute.href("/settings")], [
+                              button.button([], [
+                                html.i(
+                                  [attribute.class("ph ph-gear-six text-3xl")],
+                                  [],
+                                ),
+                              ]),
                             ]),
                           ]
                         },
@@ -226,6 +239,7 @@ fn view(m: Model) {
               ),
               case route {
                 router.Home -> home.element()
+                router.Settings -> settings.element()
                 router.Series(series_id) ->
                   series.element([
                     series.id(series_id),

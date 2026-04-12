@@ -22,6 +22,7 @@ import lustre/element
 import lustre/element/html
 import lustre/event
 import modem
+import plinth/browser/document
 import plinth/browser/window
 import plinth/javascript/date
 import rsvp
@@ -107,6 +108,7 @@ fn update(m: Model, msg: Msg) {
     )
     ShowEditor(show_editor) -> #(Model(..m, show_editor:), effect.none())
     SeriesRetrieved(Ok(srs)) -> {
+      document.set_title(srs.localized_name <> " | Lumiverse")
       #(
         Model(..m, series: option.Some(Ok(srs))),
         series.metadata(srs.id, MetadataRetrieved),

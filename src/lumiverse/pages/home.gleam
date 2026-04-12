@@ -17,6 +17,7 @@ import lustre/effect
 import lustre/element
 import lustre/element/html
 import lustre/event
+import plinth/browser/document
 import plinth/javascript/global
 import rsvp
 
@@ -44,6 +45,7 @@ pub fn register() {
 }
 
 pub fn element() {
+  document.set_title("Lumiverse")
   element.element(
     "home-page",
     [attribute.class("flex min-h-screen w-full flex-col py-8 px-4")],

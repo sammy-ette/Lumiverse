@@ -63,6 +63,34 @@ pub fn login(username: String, password: String, resp: api.Response(Account, a))
   )
 }
 
+pub fn register(
+  username: String,
+  email: String,
+  password: String,
+  resp: api.Response(Account, a),
+) {
+  let decoder = {
+    use username <- decode.field("username", decode.string)
+    use token <- decode.field("token", decode.string)
+    use refresh_token <- decode.field("refreshToken", decode.string)
+    use api_key <- decode.field("apiKey", decode.string)
+    decode.success(Account(username:, token:, refresh_token:, api_key:))
+  }
+
+  let req_json =
+    json.object([
+      #("username", json.string(username)),
+      #("email", json.string(email)),
+      #("password", json.string(password)),
+    ])
+
+  rsvp.post(
+    api.create_url("/api/account/register"),
+    req_json,
+    rsvp.expect_json(decoder, resp),
+  )
+}
+
 fn dynamic_role(from: dynamic.Dynamic) -> Result(Role, Role) {
   case decode.run(from, decode.string) {
     Ok(str) ->

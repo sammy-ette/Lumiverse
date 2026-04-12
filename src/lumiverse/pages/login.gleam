@@ -203,7 +203,7 @@ fn view(m: Model) {
                       ),
                     ),
                   ]),
-                  button.button([button.bg(button.Primary)], [
+                  button.button([button.md(), button.bg(button.Primary)], [
                     element.text("Log In"),
                   ]),
                 ],
@@ -228,7 +228,11 @@ fn view(m: Model) {
             False -> element.none()
             True ->
               button.button(
-                [button.bg(button.Neutral), attribute.class("w-full")],
+                [
+                  button.md(),
+                  button.bg(button.Neutral),
+                  attribute.class("w-full"),
+                ],
                 [
                   element.text(oidc.provider_name),
                 ],

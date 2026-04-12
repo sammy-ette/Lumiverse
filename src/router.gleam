@@ -7,9 +7,10 @@ import plinth/browser/window
 
 pub type Route {
   Home
+  Setup
   Login
-  OIDCCallback
   All
+  Settings
   Series(String)
   NotFound
   Logout
@@ -26,9 +27,10 @@ pub fn uri_to_route(uri: uri.Uri) -> Route {
   let router = fn(path: String) {
     case path {
       "/" | "" -> Home
-      "/upload" -> Upload
+      "/setup" -> Setup
+      "/settings" -> Settings
       "/login" -> Login
-      "/oidc/callback" -> OIDCCallback
+      "/upload" -> Upload
       "/all" -> All
       "/series/" <> rest -> Series(rest)
       "/read/" <> rest -> Reader(rest)
