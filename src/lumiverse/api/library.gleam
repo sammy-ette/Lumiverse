@@ -78,8 +78,7 @@ fn library_file_type_decoder() -> decode.Decoder(LibraryFileType) {
     2 -> decode.success(EPUB)
     3 -> decode.success(PDF)
     4 -> decode.success(Image)
-    _ ->
-      decode.failure(Archive, "LibraryFileType")
+    _ -> decode.failure(Archive, "LibraryFileType")
   }
 }
 
