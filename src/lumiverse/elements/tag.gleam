@@ -16,7 +16,7 @@ pub const explicit = [
 
 pub const beware = ["suggestive", "ecchi", "beware-test-tag"]
 
-pub const tag_appearance = "font-[Poppins,sans-serif] uppercase font-semibold text-[0.7rem] hover:brightness-120 cursor-pointer"
+pub const tag_appearance = "font-[Poppins,sans-serif] uppercase font-bold text-[0.85rem] hover:brightness-120 cursor-pointer"
 
 pub fn list(tags: List(series.Tag)) {
   html.div(

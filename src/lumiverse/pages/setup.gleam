@@ -1,12 +1,9 @@
 import formal/form
-import gleam/bool
 import gleam/json
 import gleam/list
-import gleam/option
 import gleam/uri
 import localstorage
 import lumiverse/api/account
-import lumiverse/api/api
 import lumiverse/elements/button
 import lustre
 import lustre/attribute

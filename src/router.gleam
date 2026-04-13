@@ -1,4 +1,3 @@
-import gleam/int
 import gleam/option
 import gleam/uri
 import lumiverse/common

@@ -137,8 +137,7 @@ fn update(m: Model, msg: Msg) {
     )
     DetailsRetrieved(Error(_)) -> #(m, effect.none())
     Read -> {
-      echo "read pls"
-      case echo m.series {
+      case m.series {
         option.Some(Ok(srs)) -> {
           #(m, reader.continue_point(srs.id, ContinuePointRetrieved))
         }
@@ -156,10 +155,7 @@ fn update(m: Model, msg: Msg) {
       )
     }
     ContinuePointRetrieved(Error(_)) -> #(m, effect.none())
-    RequestUpdate -> {
-      echo "request update pls"
-      #(m, effect.none())
-    }
+    RequestUpdate -> #(m, effect.none())
     NewTag ->
       case window.prompt("Enter the tag name") {
         Error(_) -> #(m, effect.none())
@@ -170,7 +166,7 @@ fn update(m: Model, msg: Msg) {
       let assert option.Some(metadata) = srs.metadata
       let updated_metadata =
         series.Metadata(..metadata, tags: [
-          echo series.Tag(
+          series.Tag(
             id: case
               tags
               |> list.find(fn(t) {
@@ -256,19 +252,21 @@ fn display(
         [attribute.class("flex flex-col sm:flex-row md:flex-row gap-4")],
         [
           html.img([
-            attribute.class("max-sm:self-center bg-zinc-800 rounded w-52 h-80"),
+            attribute.class(
+              "max-sm:self-center bg-zinc-800 rounded-lg h-72 flex-shrink-0",
+            ),
             attribute.src(cover_url),
             attribute.rel("preload"),
             attribute.attribute("fetchpriority", "high"),
             attribute.attribute("as", "image"),
             attribute.alt("Cover image for " <> srs.localized_name),
           ]),
-          html.div([attribute.class("flex flex-col gap-5")], [
-            html.div([attribute.class("space-y-2")], [
+          html.div([attribute.class("flex flex-col gap-5 min-w-0")], [
+            html.div([attribute.class("space-y-1")], [
               html.span(
                 [
                   attribute.class(
-                    "flex flex-nowrap gap-2 font-['Poppins'] font-extrabold",
+                    "flex flex-nowrap gap-2 font-['Poppins'] font-extrabold items-center",
                   ),
                 ],
                 [
@@ -289,11 +287,55 @@ fn display(
               html.h2(
                 [
                   attribute.class(
-                    "font-medium sm:font-semibold text-lg sm:text-xl",
+                    "font-medium text-zinc-400 text-base sm:text-lg",
                   ),
                 ],
                 [element.text(srs.name)],
               ),
+              case srs.pages {
+                0 -> element.none()
+                total ->
+                  html.div([attribute.class("flex items-center gap-3 pt-1")], [
+                    html.div(
+                      [
+                        attribute.class(
+                          "flex-1 h-1.5 bg-zinc-700 rounded-full overflow-hidden",
+                        ),
+                      ],
+                      [
+                        html.div(
+                          [
+                            attribute.class(case srs.pages_read == total {
+                              True -> "h-full bg-emerald-500 rounded-full"
+                              False -> "h-full bg-violet-500 rounded-full"
+                            }),
+                            attribute.style(
+                              "width",
+                              float.to_string(
+                                int.to_float(srs.pages_read)
+                                /. int.to_float(total)
+                                *. 100.0,
+                              )
+                                <> "%",
+                            ),
+                          ],
+                          [],
+                        ),
+                      ],
+                    ),
+                    html.span(
+                      [attribute.class("text-xs text-zinc-400 shrink-0")],
+                      [
+                        element.text(
+                          int.to_string(srs.pages_read)
+                          <> " / "
+                          <> int.to_string(total)
+                          <> " pages",
+                        ),
+                      ],
+                    ),
+                  ])
+              },
             ]),
             html.div([attribute.class("flex flex-wrap gap-2")], [
               button.button(
@@ -386,29 +428,62 @@ fn display(
           ]),
         ],
       ),
-      html.div([attribute.class("space-y-4")], [
-        html.p([], [element.text(metadata.summary)]),
+      html.div([attribute.class("space-y-4 pt-2 border-t border-zinc-800")], [
+        html.p([attribute.class("text-sm text-zinc-300 leading-relaxed")], [
+          element.text(metadata.summary),
+        ]),
         html.div([attribute.class("flex flex-col gap-4")], [
           case list.is_empty(details.volumes) {
             True -> element.none()
             False ->
               html.div([attribute.class("space-y-4")], [
-                html.h2([attribute.class("font-bold text-3xl")], [
+                html.h2([attribute.class("font-bold text-2xl")], [
                   element.text("Volumes"),
                 ]),
                 html.div(
-                  [attribute.class("flex flex-col gap-2 w-full")],
+                  [attribute.class("grid grid-cols-2 sm:grid-cols-3 gap-2")],
                   list.map(details.volumes, fn(vol: series.Volume) {
-                    button.button(
+                    let pct = case vol.pages {
+                      0 -> 0.0
+                      p ->
+                        int.to_float(vol.pages_read) /. int.to_float(p) *. 100.0
+                    }
+                    html.div(
                       [
-                        // event.on_click(layout.Read(option.Some(vol.id))),
-                        button.bg(button.Neutral),
-                        button.lg(),
-                        attribute.class("text-white font-semibold"),
+                        attribute.class(
+                          "bg-zinc-800 hover:bg-zinc-700 transition rounded-lg px-4 py-3 flex flex-col gap-2 cursor-pointer",
+                        ),
                       ],
                       [
-                        html.span([attribute.class("icon-book")], []),
-                        element.text(vol.name),
+                        html.span([attribute.class("font-semibold text-sm")], [
+                          element.text(vol.name),
+                        ]),
+                        html.div(
+                          [
+                            attribute.class(
+                              "h-1 bg-zinc-700 rounded-full overflow-hidden",
+                            ),
+                          ],
+                          [
+                            html.div(
+                              [
+                                attribute.class(
+                                  case
+                                    vol.pages_read == vol.pages && vol.pages > 0
+                                  {
+                                    True -> "h-full bg-emerald-500 rounded-full"
+                                    False -> "h-full bg-violet-500 rounded-full"
+                                  },
+                                ),
+                                attribute.style(
+                                  "width",
+                                  float.to_string(pct) <> "%",
+                                ),
+                              ],
+                              [],
+                            ),
+                          ],
+                        ),
                       ],
                     )
                   }),
@@ -437,10 +512,12 @@ fn display(
                 html.div([attribute.class("space-y-4")], [
                   html.div(
                     [
-                      attribute.class("flex flex-wrap gap-3 justify-between"),
+                      attribute.class(
+                        "flex flex-wrap gap-3 justify-between items-center",
+                      ),
                     ],
                     [
-                      html.h2([attribute.class("font-bold text-3xl")], [
+                      html.h2([attribute.class("font-bold text-2xl")], [
                         element.text("Chapters"),
                       ]),
                       button.button([button.bg(button.Neutral), button.md()], [
@@ -453,7 +530,7 @@ fn display(
                     ],
                   ),
                   html.div(
-                    [attribute.class("flex flex-col gap-2 w-ful")],
+                    [attribute.class("flex flex-col gap-1 w-full")],
                     list.map(
                       list.sort(
                         filtered_chapters,
@@ -469,7 +546,13 @@ fn display(
                               button.bg(button.Neutral),
                               button.lg(),
                               attribute.class(
-                                "group-hover:bg-zinc-700/60 w-full text-white font-semibold",
+                                "group-hover:bg-zinc-700/60 w-full text-white font-medium justify-start gap-3"
+                                <> case
+                                  chp.pages_read == chp.pages && chp.pages > 0
+                                {
+                                  True -> " opacity-50"
+                                  False -> ""
+                                },
                               ),
                               case chp.pages_read {
                                 0 -> attribute.none()
@@ -477,7 +560,27 @@ fn display(
                               },
                             ],
                             [
-                              html.span([attribute.class("icon-book")], []),
+                              html.i(
+                                [
+                                  attribute.class(
+                                    case
+                                      chp.pages_read == chp.pages
+                                      && chp.pages > 0
+                                    {
+                                      True ->
+                                        "ph-fill ph-check-circle text-emerald-500 text-lg"
+                                      False ->
+                                        case chp.pages_read {
+                                          0 ->
+                                            "ph ph-book text-zinc-400 text-lg"
+                                          _ ->
+                                            "ph-fill ph-book-open text-violet-400 text-lg"
+                                        }
+                                    },
+                                  ),
+                                ],
+                                [],
+                              ),
                               element.text(chp.title),
                             ],
                           ),
@@ -539,7 +642,7 @@ fn display(
   )
 }
 
-fn editor(m: Model, srs: series.Series, metadata: series.Metadata) {
+fn editor(_m: Model, srs: series.Series, metadata: series.Metadata) {
   let submit = fn(fields) {
     editor_form()
     |> form.add_values(fields)

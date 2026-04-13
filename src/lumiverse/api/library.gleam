@@ -79,10 +79,7 @@ fn library_file_type_decoder() -> decode.Decoder(LibraryFileType) {
     3 -> decode.success(PDF)
     4 -> decode.success(Image)
     _ ->
-      decode.failure(
-        todo as "Zero value for LibraryFileType",
-        "LibraryFileType",
-      )
+      decode.failure(Archive, "LibraryFileType")
   }
 }
 

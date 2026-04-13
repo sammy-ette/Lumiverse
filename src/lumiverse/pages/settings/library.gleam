@@ -82,7 +82,6 @@ type Msg {
   LibraryCreated(Result(Nil, rsvp.Error))
   LibraryUpdated(Result(Nil, rsvp.Error))
   ScanLibrary(Int)
-  ScanLibraryResult(Result(Nil, rsvp.Error))
   DeleteLibrary(Int)
   DeleteLibraryResult(Result(Nil, rsvp.Error))
 }
