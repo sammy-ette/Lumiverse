@@ -81,15 +81,10 @@ fn update(m: Model, msg: Msg) {
       ),
     )
     RegisterSubmitted(Error(form)) -> #(Model(form:), effect.none())
-    RegisterResponse(Ok(account)) -> {
+    RegisterResponse(Ok(user_account)) -> {
       localstorage.write(
         "user",
-        json.object([
-          #("username", json.string(account.username)),
-          #("token", json.string(account.token)),
-          #("refresh_token", json.string(account.refresh_token)),
-          #("api_key", json.string(account.api_key)),
-        ])
+        account.account_to_json(user_account)
           |> json.to_string,
       )
       #(m, {
@@ -213,9 +208,12 @@ fn view(m: Model) {
               ),
             ),
           ]),
-          button.button([button.bg(button.Primary)], [
-            element.text("Register"),
-          ]),
+          button.button(
+            [button.bg(button.Primary), button.md(), attribute.class("w-full")],
+            [
+              element.text("Register"),
+            ],
+          ),
         ],
       ),
     ]),

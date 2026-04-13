@@ -3,7 +3,6 @@ import gleam/dict
 import gleam/int
 import gleam/list
 import gleam/option
-import gleam/result
 import localstorage
 import lumiverse/api/series as series_api
 import lumiverse/api/stream
@@ -25,6 +24,7 @@ type Model {
   Model(
     dashboard_rows: List(stream.SeriesList),
     dashboard_count: Int,
+    loaded: Bool,
     carousel: option.Option(stream.SeriesList),
     carousel_index: Int,
     metadata: dict.Dict(Int, series_api.Metadata),
@@ -58,6 +58,7 @@ fn init(_) {
     Model(
       dashboard_rows: [],
       dashboard_count: 0,
+      loaded: False,
       carousel: option.None,
       carousel_index: 0,
       metadata: dict.new(),
@@ -101,6 +102,7 @@ fn update(m: Model, msg: Msg) {
       #(
         Model(
           ..m,
+          loaded: True,
           dashboard_count: list.length(
             list.filter(rows, fn(itm) {
               bool.and(itm.visible, case itm.stream_type {
@@ -179,80 +181,91 @@ fn update(m: Model, msg: Msg) {
 }
 
 fn view(m: Model) {
-  html.div(
-    [
-      attribute.class("flex min-h-screen flex-col space-y-8 overflow-hidden"),
-      components.redirect_click(Nothing),
-    ],
-    [
-      html.div([attribute.class("space-y-4")], [
-        html.h1([attribute.class("font-black text-4xl")], [
-          element.text("New On Lumiverse"),
-        ]),
-        html.div([attribute.class("relative overflow-hidden rounded-md")], [
-          html.div(
-            [
-              attribute.style(
-                "transform",
-                "translateX(-" <> int.to_string(m.carousel_index * 100) <> "%)",
-              ),
-              attribute.class(
-                "flex h-[45vh] flex-shrink-0 rounded-md bg-zinc-800 transition-transform duration-300 ease-in-out",
-              ),
-            ],
-            case m.carousel {
-              option.None -> [element.none()]
-              option.Some(srs_list) -> carousel(m, srs_list)
-            },
+  case m.loaded, m.dashboard_rows, m.dashboard_count {
+    True, [], 0 -> element.none()
+    _, _, _ ->
+      html.div(
+        [
+          attribute.class(
+            "flex min-h-screen flex-col space-y-8 overflow-hidden",
           ),
-          html.div([attribute.class("absolute bottom-8 right-8 flex gap-4")], [
-            button.button([event.on_click(CarouselTick(-1))], [
-              html.i([attribute.class("ph ph-caret-left text-2xl")], []),
+          components.redirect_click(Nothing),
+        ],
+        [
+          html.div([attribute.class("space-y-4")], [
+            html.h1([attribute.class("font-black text-4xl")], [
+              element.text("New On Lumiverse"),
             ]),
-            button.button([event.on_click(CarouselTick(1))], [
-              html.i([attribute.class("ph ph-caret-right text-2xl")], []),
+            html.div([attribute.class("relative overflow-hidden rounded-md")], [
+              html.div(
+                [
+                  attribute.style(
+                    "transform",
+                    "translateX(-"
+                      <> int.to_string(m.carousel_index * 100)
+                      <> "%)",
+                  ),
+                  attribute.class(
+                    "flex h-[45vh] flex-shrink-0 rounded-md bg-zinc-800 transition-transform duration-300 ease-in-out",
+                  ),
+                ],
+                case m.carousel {
+                  option.None -> [element.none()]
+                  option.Some(srs_list) -> carousel(m, srs_list)
+                },
+              ),
+              html.div(
+                [attribute.class("absolute bottom-8 right-8 flex gap-4")],
+                [
+                  button.button([event.on_click(CarouselTick(-1))], [
+                    html.i([attribute.class("ph ph-caret-left text-2xl")], []),
+                  ]),
+                  button.button([event.on_click(CarouselTick(1))], [
+                    html.i([attribute.class("ph ph-caret-right text-2xl")], []),
+                  ]),
+                ],
+              ),
             ]),
           ]),
-        ]),
-      ]),
-      html.div(
-        [attribute.class("space-y-5")],
-        list.take(
-          list.flatten([
-            list.map(m.dashboard_rows, fn(row) {
-              html.div([attribute.class("flex flex-col gap-3")], [
-                html.h2([attribute.class("font-extrabold text-3xl")], [
-                  element.text(row.title),
-                ]),
-                html.div(
-                  [attribute.class("flex gap-4 overflow-x-auto")],
-                  list.map(row.items, series.card),
-                ),
-              ])
-            }),
-            list.repeat(
-              html.div([attribute.class("flex flex-col gap-3")], [
-                html.h2(
-                  [
-                    attribute.class(
-                      "font-extrabold text-3xl animate-pulse bg-zinc-800 h-10 w-52",
+          html.div(
+            [attribute.class("space-y-5")],
+            list.take(
+              list.flatten([
+                list.map(m.dashboard_rows, fn(row) {
+                  html.div([attribute.class("flex flex-col gap-3")], [
+                    html.h2([attribute.class("font-extrabold text-3xl")], [
+                      element.text(row.title),
+                    ]),
+                    html.div(
+                      [attribute.class("flex gap-4 overflow-x-auto")],
+                      list.map(row.items, series.card),
                     ),
-                  ],
-                  [],
-                ),
-                html.div(
-                  [attribute.class("flex gap-4 overflow-x-auto")],
-                  list.repeat(series.card_placeholder(), 5),
+                  ])
+                }),
+                list.repeat(
+                  html.div([attribute.class("flex flex-col gap-3")], [
+                    html.h2(
+                      [
+                        attribute.class(
+                          "font-extrabold text-3xl animate-pulse bg-zinc-800 h-10 w-52",
+                        ),
+                      ],
+                      [],
+                    ),
+                    html.div(
+                      [attribute.class("flex gap-4 overflow-x-auto")],
+                      list.repeat(series.card_placeholder(), 5),
+                    ),
+                  ]),
+                  m.dashboard_count,
                 ),
               ]),
               m.dashboard_count,
             ),
-          ]),
-          m.dashboard_count,
-        ),
-      ),
-    ],
-  )
+          ),
+        ],
+      )
+  }
 }
 
 fn carousel(m: Model, srs_list: stream.SeriesList) {
@@ -288,28 +301,22 @@ fn carousel(m: Model, srs_list: stream.SeriesList) {
                 ],
                 [element.text(serie.name)],
               ),
-              {
-                use metadata <- result.try(
-                  m.metadata
-                  |> dict.get(serie.id)
-                  |> result.replace_error(element.none()),
-                )
-
-                html.div(
-                  [attribute.class("flex-1 flex flex-col justify-between")],
-                  [
-                    html.div([attribute.class("flex flex-col gap-2")], [
-                      tag.list(metadata.tags),
-                      html.p([attribute.class("flex-wrap text-wrap")], [
-                        element.text(metadata.summary),
+              case dict.get(m.metadata, serie.id) {
+                Error(_) -> element.none()
+                Ok(metadata) ->
+                  html.div(
+                    [attribute.class("flex-1 flex flex-col justify-between")],
+                    [
+                      html.div([attribute.class("flex flex-col gap-2")], [
+                        tag.list(metadata.tags),
+                        html.p([attribute.class("flex-wrap text-wrap")], [
+                          element.text(metadata.summary),
+                        ]),
                       ]),
-                    ]),
-                    // html.div([attribute.class("flex")], [element.text("Author Name")]),
-                  ],
-                )
-                |> Ok
-              }
-                |> result.unwrap_both,
+                      // html.div([attribute.class("flex")], [element.text("Author Name")]),
+                    ],
+                  )
+              },
             ]),
           ],
         ),

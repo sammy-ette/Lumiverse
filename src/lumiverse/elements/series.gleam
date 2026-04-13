@@ -13,7 +13,7 @@ pub fn card(srs: series.SeriesMinimal) {
       "/api/image/series-cover?seriesId="
       <> int.to_string(srs.id)
       <> "&apiKey="
-      <> user.api_key,
+      <> user |> account.image_key,
     )
 
   html.a([attribute.href("/series/" <> int.to_string(srs.id))], [
@@ -40,7 +40,7 @@ pub fn cover_image(
       "/api/image/series-cover?seriesId="
       <> int.to_string(srs.id)
       <> "&apiKey="
-      <> user.api_key,
+      <> user |> account.image_key,
     )
 
   html.img([attribute.src(cover_url), ..attrs])

@@ -2,6 +2,7 @@ import gleam/int
 import gleam/option
 import gleam/uri
 import lumiverse/common
+import plinth/browser/location
 
 import plinth/browser/window
 
@@ -107,6 +108,7 @@ pub fn direct_with_root(root: uri.Uri, rel: String) -> String {
 // }
 
 pub fn get_route() -> uri.Uri {
-  let assert Ok(route) = uri.parse(window.location())
+  let assert Ok(route) =
+    uri.parse(window.location(window.self()) |> location.origin)
   route
 }

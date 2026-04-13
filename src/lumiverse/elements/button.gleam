@@ -22,6 +22,19 @@ pub fn button(
   )
 }
 
+pub fn icon(attrs: List(attribute.Attribute(a)), icon: String) {
+  html.button(
+    [
+      attribute.class(
+        "rounded-full flex gap-2 items-center justify-center transition hover:bg-white/10 active:scale-[95%] outline-none",
+      ),
+    ],
+    [
+      html.i([attribute.class("ph-bold ph-" <> icon), ..attrs], []),
+    ],
+  )
+}
+
 pub fn bg(color: Color) -> attribute.Attribute(a) {
   case color {
     Primary -> "bg-violet-500"
@@ -31,13 +44,13 @@ pub fn bg(color: Color) -> attribute.Attribute(a) {
 }
 
 pub fn sm() {
-  attribute.class("rounded px-3.5 py-1.5 text-sm")
+  attribute.class("px-3.5 py-1.5 text-sm")
 }
 
 pub fn md() {
-  attribute.class("rounded px-4 py-2 text-base")
+  attribute.class("px-4 py-2 text-base")
 }
 
 pub fn lg() {
-  attribute.class("rounded px-5 py-2.5 text-lg")
+  attribute.class("px-5 py-2.5 text-lg")
 }

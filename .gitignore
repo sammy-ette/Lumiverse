@@ -4,3 +4,7 @@
 erl_crash.dump
 /priv/static/lumiverse.*
 node_modules
+
+#Added automatically by Lustre Dev Tools
+/.lustre
+/dist

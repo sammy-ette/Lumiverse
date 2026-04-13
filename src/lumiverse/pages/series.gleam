@@ -240,7 +240,7 @@ fn display(
       "/api/image/series-cover?seriesId="
       <> int.to_string(srs.id)
       <> "&apiKey="
-      <> account.api_key,
+      <> account |> account.image_key,
     )
 
   html.div(

@@ -14,7 +14,6 @@ target = "javascript"
 # https://gleam.run/writing-gleam/gleam-toml/. 
 
 [dependencies]
-lustre_http = ">= 1.0.0 and < 2.0.0"
 gleam_stdlib = ">= 0.62.0 and < 1.0.0"
 plinth = ">= 0.7.2 and < 1.0.0"
 lustre = ">= 5.2.1 and < 6.0.0"
@@ -28,4 +27,15 @@ formal = ">= 3.0.0 and < 4.0.0"
 
 [dev-dependencies]
 gleeunit = "~> 1.0"
-lustre_dev_tools = "~> 1.1"
+lustre_dev_tools = ">= 2.3.6 and < 3.0.0"
+
+[tools.lustre.dev]
+proxy = { from = "/api", to = "http://localhost:5000/api" }
+
+[tools.lustre.html]
+stylesheets = [
+  { href = "https://fonts.googleapis.com/css2?family=Azeret+Mono:ital,wght@0,100..900;1,100..900&family=Poppins:wght@100;200;300;400;500;600;700;800&display=swap" },
+  { href = "https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css" },
+  { href = "https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css" },
+  { href = "https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css" },
+]

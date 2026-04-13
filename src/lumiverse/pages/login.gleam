@@ -90,15 +90,10 @@ fn update(m: Model, msg: Msg) {
       account.login(login.username, login.password, LoginResponse),
     )
     LoginSubmitted(Error(form)) -> #(Model(..m, form:), effect.none())
-    LoginResponse(Ok(account)) -> {
+    LoginResponse(Ok(user_account)) -> {
       localstorage.write(
         "user",
-        json.object([
-          #("username", json.string(account.username)),
-          #("token", json.string(account.token)),
-          #("refresh_token", json.string(account.refresh_token)),
-          #("api_key", json.string(account.api_key)),
-        ])
+        account.account_to_json(user_account)
           |> json.to_string,
       )
       #(m, {

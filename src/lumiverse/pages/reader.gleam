@@ -250,7 +250,7 @@ fn reader(progress: reader.Progress) {
       <> "&page="
       <> int.to_string(progress.page_number)
       <> "&apiKey="
-      <> user.api_key,
+      <> user |> account.image_key,
     )
 
   html.div(

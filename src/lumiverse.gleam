@@ -15,7 +15,7 @@ import lumiverse/pages/home
 import lumiverse/pages/login
 import lumiverse/pages/reader
 import lumiverse/pages/series
-import lumiverse/pages/settings
+import lumiverse/pages/settings/page as settings
 import lumiverse/pages/setup
 import lustre
 import lustre/attribute
@@ -53,14 +53,25 @@ pub fn main() {
   let assert Ok(_) = setup.register()
   let assert Ok(_) = login.register()
   case localstorage.read("user") {
-    Ok(_user) -> {
+    Error(_) -> Nil
+    Ok(user) ->
+      case json.parse(user, account.account_decoder()) {
+        Ok(_) -> Nil
+        Error(_) -> {
+          let _ = localstorage.remove("user")
+          Nil
+        }
+      }
+  }
+  case localstorage.read("server_url"), localstorage.read("user") {
+    Ok(_server_url), Ok(_user) -> {
       let assert Ok(_) = home.register()
       let assert Ok(_) = series.register()
       let assert Ok(_) = reader.register()
       let assert Ok(_) = settings.register()
       Nil
     }
-    Error(_) -> Nil
+    _, _ -> Nil
   }
   let assert Ok(_) = lustre.start(app, "#app", Nil)
 }
@@ -139,11 +150,12 @@ fn update(m: Model, msg: Msg) {
     ServerSetupDone(Ok(done)) -> {
       let eff = case done {
         True ->
-          case localstorage.read("user"), m.route == router.Login {
+          case echo localstorage.read("user"), echo m.route == router.Login {
             Error(_), False -> {
               let assert Ok(path) = uri.parse("/login")
               modem.load(path)
             }
+            Error(_), True -> effect.none()
             _, _ -> account.roles(RolesRetrieved)
           }
         False -> modem.push("/setup", option.None, option.None)
@@ -162,99 +174,108 @@ fn update(m: Model, msg: Msg) {
 }
 
 fn view(m: Model) {
-  case echo m.server_url, m.connecting {
-    option.None, _ | option.Some(_), True -> server_url_view(m)
-    option.Some(_), False ->
-      case m.route {
-        router.Login -> login.element()
-        router.Setup -> setup.element()
-        route ->
-          html.div(
-            [
-              attribute.class("w-full min-h-screen flex flex-col"),
-            ],
-            [
-              html.nav(
+  html.div(
+    [attribute.class("bg-zinc-950 text-white font-[Poppins,sans-serif]")],
+    [
+      case echo m.server_url, m.connecting {
+        option.None, _ | option.Some(_), True -> server_url_view(m)
+        option.Some(_), False ->
+          case m.route {
+            router.Login -> login.element()
+            router.Setup -> setup.element()
+            route ->
+              html.div(
                 [
-                  attribute.class(
-                    "z-50 bg-zinc-950/85 backdrop-blur-xl border-b border-zinc-600",
-                  ),
-                  case route {
-                    router.Reader(_) -> attribute.none()
-                    _ -> attribute.class("sticky top-0 left-0 right-0")
-                  },
+                  attribute.class("w-full min-h-screen flex flex-col"),
                 ],
                 [
-                  html.div(
+                  html.nav(
                     [
                       attribute.class(
-                        "flex flex-wrap items-center justify-between p-4",
+                        "z-50 bg-zinc-950/85 backdrop-blur-xl border-b border-zinc-600",
                       ),
+                      case route {
+                        router.Reader(_) -> attribute.none()
+                        _ -> attribute.class("sticky top-0 left-0 right-0")
+                      },
                     ],
                     [
-                      html.a([attribute.href("/")], [
-                        html.span(
-                          [
-                            attribute.class(
-                              "self-center text-2xl font-extrabold flex gap-2",
-                            ),
-                          ],
-                          [
-                            element.text("Lumiverse"),
-                            tag.simple("Beta", [
-                              attribute.class("bg-violet-500"),
-                            ]),
-                          ],
-                        ),
-                      ]),
                       html.div(
-                        [attribute.class("flex gap-3")],
-                        case m.roles |> list.contains(account.Admin) {
-                          False -> [element.none()]
-                          True -> [
-                            button.button([event.on_click(ScanAll)], [
-                              html.i(
-                                [
-                                  attribute.class(
-                                    "ph ph-arrow-clockwise text-3xl",
-                                  ),
-                                ],
-                                [],
-                              ),
-                            ]),
-                            html.a([attribute.href("/settings")], [
-                              button.button([], [
-                                html.i(
-                                  [attribute.class("ph ph-gear-six text-3xl")],
-                                  [],
+                        [
+                          attribute.class(
+                            "flex flex-wrap items-center justify-between p-4",
+                          ),
+                        ],
+                        [
+                          html.a([attribute.href("/")], [
+                            html.span(
+                              [
+                                attribute.class(
+                                  "self-center text-2xl font-extrabold flex gap-2",
                                 ),
-                              ]),
-                            ]),
-                          ]
-                        },
+                              ],
+                              [
+                                element.text("Lumiverse"),
+                                tag.simple("Beta", [
+                                  attribute.class("bg-violet-500"),
+                                ]),
+                              ],
+                            ),
+                          ]),
+                          html.div(
+                            [attribute.class("flex gap-3")],
+                            case m.roles |> list.contains(account.Admin) {
+                              False -> [element.none()]
+                              True -> [
+                                button.button([event.on_click(ScanAll)], [
+                                  html.i(
+                                    [
+                                      attribute.class(
+                                        "ph ph-arrow-clockwise text-3xl",
+                                      ),
+                                    ],
+                                    [],
+                                  ),
+                                ]),
+                                html.a([attribute.href("/settings")], [
+                                  button.button([], [
+                                    html.i(
+                                      [
+                                        attribute.class(
+                                          "ph ph-gear-six text-3xl",
+                                        ),
+                                      ],
+                                      [],
+                                    ),
+                                  ]),
+                                ]),
+                              ]
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),
+                  case route {
+                    router.Home -> home.element()
+                    router.Settings -> settings.element()
+                    router.Series(series_id) ->
+                      series.element([
+                        series.id(series_id),
+                        attribute.property(
+                          "admin",
+                          json.bool(m.roles |> list.contains(account.Admin)),
+                        ),
+                      ])
+                    router.Reader(id) -> reader.element([reader.id(id)])
+                    _ -> html.div([], [element.text("Page not found.")])
+                  },
                 ],
-              ),
-              case route {
-                router.Home -> home.element()
-                router.Settings -> settings.element()
-                router.Series(series_id) ->
-                  series.element([
-                    series.id(series_id),
-                    attribute.property(
-                      "admin",
-                      json.bool(m.roles |> list.contains(account.Admin)),
-                    ),
-                  ])
-                router.Reader(id) -> reader.element([reader.id(id)])
-                _ -> html.div([], [element.text("Page not found.")])
-              },
-            ],
-          )
-      }
-  }
+              )
+          }
+      },
+    ],
+  )
 }
 
 fn server_url_view(m: Model) {
