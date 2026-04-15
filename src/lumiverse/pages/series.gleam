@@ -349,10 +349,17 @@ fn display(
                       [attribute.class("text-xs text-zinc-400 shrink-0")],
                       [
                         element.text(
-                          int.to_string(srs.pages_read)
-                          <> " / "
-                          <> int.to_string(total)
-                          <> " pages",
+                          float.to_string(
+                            {
+                              {
+                                int.to_float(srs.pages_read)
+                                /. int.to_float(total)
+                              }
+                              *. 100.0
+                            }
+                            |> float.to_precision(2),
+                          )
+                          <> "% read",
                         ),
                       ],
                     ),
