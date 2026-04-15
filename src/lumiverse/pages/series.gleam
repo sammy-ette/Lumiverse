@@ -205,7 +205,25 @@ fn update(m: Model, msg: Msg) {
       let assert option.Some(metadata) = srs.metadata
       let updated_metadata =
         series.Metadata(..metadata, summary: edit_form.summary)
-      #(m, series.update_metadata(updated_metadata, MetadataUpdated))
+      let updated_series =
+        series.Series(
+          ..srs,
+          name: edit_form.series_name,
+          localized_name: edit_form.localized_name,
+          metadata: option.Some(updated_metadata),
+        )
+      #(
+        m,
+        effect.batch([
+          series.update_metadata(updated_metadata, MetadataUpdated),
+          series.update(updated_series, fn(res) {
+            case res {
+              Ok(_) -> SeriesRetrieved(Ok(updated_series))
+              Error(e) -> SeriesRetrieved(Error(e))
+            }
+          }),
+        ]),
+      )
     }
     EditSubmitted(Error(edit_form)) -> #(Model(..m, edit_form:), effect.none())
   }

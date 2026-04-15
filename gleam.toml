@@ -33,6 +33,7 @@ lustre_dev_tools = ">= 2.3.6 and < 3.0.0"
 proxy = { from = "/api", to = "http://localhost:5000/api" }
 
 [tools.lustre.html]
+title = "Lumiverse"
 stylesheets = [
   { href = "https://fonts.googleapis.com/css2?family=Azeret+Mono:ital,wght@0,100..900;1,100..900&family=Poppins:wght@100;200;300;400;500;600;700;800&display=swap" },
   { href = "https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css" },

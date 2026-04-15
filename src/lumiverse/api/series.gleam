@@ -434,6 +434,27 @@ pub fn metadata(id: Int, resp: api.Response(Metadata, a)) {
   rsvp.send(req, rsvp.expect_json(metadata_decoder(), resp))
 }
 
+pub fn update(series: Series, resp: api.Response(Nil, a)) {
+  let assert Ok(req) = request.to(api.create_url("/api/series/update"))
+
+  let req =
+    req
+    |> request.set_method(http.Post)
+    |> request.set_body(
+      json.object([
+        #("id", json.int(series.id)),
+        #("name", json.string(series.name)),
+        #("localizedName", json.string(series.localized_name)),
+      ])
+      |> json.to_string,
+    )
+    |> request.set_header("Authorization", "Bearer " <> account.token())
+    |> request.set_header("Accept", "application/json")
+    |> request.set_header("Content-Type", "application/json")
+
+  rsvp.send(req, api.expect_ok_response(resp))
+}
+
 pub fn update_metadata(metadata: Metadata, resp: api.Response(Nil, a)) {
   let assert Ok(req) = request.to(api.create_url("/api/series/metadata"))
 
