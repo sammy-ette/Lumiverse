@@ -302,6 +302,8 @@ fn display(
                   ]),
                 ],
               ),
+              case srs.localized_name == srs.name {
+                False ->
               html.h2(
                 [
                   attribute.class(
@@ -309,7 +311,9 @@ fn display(
                   ),
                 ],
                 [element.text(srs.name)],
-              ),
+                  )
+                True -> element.none()
+              },
               case srs.pages {
                 0 -> element.none()
                 total ->
