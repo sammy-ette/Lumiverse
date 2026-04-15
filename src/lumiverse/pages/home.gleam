@@ -193,7 +193,7 @@ fn view(m: Model) {
         ],
         [
           html.div([attribute.class("space-y-4")], [
-            html.h1([attribute.class("font-black text-4xl")], [
+            html.h1([attribute.class("font-black text-3xl sm:text-4xl")], [
               element.text("New On Lumiverse"),
             ]),
             html.div([attribute.class("relative overflow-hidden rounded-md")], [
@@ -206,7 +206,7 @@ fn view(m: Model) {
                       <> "%)",
                   ),
                   attribute.class(
-                    "flex h-[45vh] flex-shrink-0 rounded-md bg-zinc-800 transition-transform duration-300 ease-in-out",
+                    "flex h-[30vh] sm:h-[45vh] flex-shrink-0 rounded-md bg-zinc-800 transition-transform duration-300 ease-in-out",
                   ),
                 ],
                 case m.carousel {
@@ -282,21 +282,26 @@ fn carousel(m: Model, srs_list: stream.SeriesList) {
           ]),
         ]),
         html.div(
-          [attribute.class("z-100 flex gap-4 p-8 bg-zinc-950/75 w-full")],
+          [attribute.class("z-10 flex gap-4 p-4 sm:p-8 bg-zinc-950/75 w-full")],
           [
             html.div(
               [
-                attribute.class(
-                  "overflow-hidden rounded-md h-full w-62 flex-shrink-0 bg-white",
-                ),
+                attribute.class("flex flex-row gap-4 flex-shrink-0"),
               ],
-              [series.cover_image(serie, [attribute.class("object-cover")])],
+              [
+                series.cover_image(serie, [
+                  attribute.class(
+                    // Increased mobile size to h-48 w-32
+                    "bg-zinc-800 rounded-lg h-48 w-32 sm:h-72 sm:w-50 object-cover flex-shrink-0",
+                  ),
+                ]),
+              ],
             ),
-            html.div([attribute.class("flex flex-col gap-2")], [
+            html.div([attribute.class("flex flex-col gap-2 min-w-0 flex-1")], [
               html.h1(
                 [
                   attribute.class(
-                    "font-[Poppins,sans-serif] font-extrabold text-4xl",
+                    "font-[Poppins,sans-serif] font-extrabold text-xl sm:text-5xl",
                   ),
                 ],
                 [element.text(serie.name)],
@@ -305,15 +310,28 @@ fn carousel(m: Model, srs_list: stream.SeriesList) {
                 Error(_) -> element.none()
                 Ok(metadata) ->
                   html.div(
-                    [attribute.class("flex-1 flex flex-col justify-between")],
+                    [
+                      attribute.class(
+                        "flex-1 flex flex-col justify-between overflow-hidden",
+                      ),
+                    ],
                     [
                       html.div([attribute.class("flex flex-col gap-2")], [
-                        tag.list(metadata.tags),
-                        html.p([attribute.class("flex-wrap text-wrap")], [
-                          element.text(metadata.summary),
+                        // Added wrap for tags to ensure they fit the narrower text column
+                        html.div([attribute.class("flex flex-wrap gap-1")], [
+                          tag.list(metadata.tags),
                         ]),
+                        html.p(
+                          [
+                            attribute.class(
+                              "hidden sm:block flex-wrap text-wrap line-clamp-4",
+                            ),
+                          ],
+                          [
+                            element.text(metadata.summary),
+                          ],
+                        ),
                       ]),
-                      // html.div([attribute.class("flex")], [element.text("Author Name")]),
                     ],
                   )
               },

@@ -54,3 +54,7 @@ pub fn md() {
 pub fn lg() {
   attribute.class("px-5 py-2.5 text-lg")
 }
+
+pub fn adaptive() {
+  attribute.class("px-4 py-2 text-base sm:px-5 sm:py-2.5 sm:text-lg")
+}

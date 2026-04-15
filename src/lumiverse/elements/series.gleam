@@ -23,7 +23,7 @@ pub fn card(srs: series.SeriesMinimal) {
         attribute.src(cover_url),
         attribute.class("rounded bg-zinc-800 w-full object-cover sm:h-72 h-44"),
       ]),
-      html.div([attribute.class("font-medium text-xs md:text-base")], [
+      html.div([attribute.class("font-medium text-base")], [
         element.text(srs.name),
       ]),
     ]),

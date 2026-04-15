@@ -304,13 +304,13 @@ fn display(
               ),
               case srs.localized_name == srs.name {
                 False ->
-              html.h2(
-                [
-                  attribute.class(
-                    "font-medium text-zinc-400 text-base sm:text-lg",
-                  ),
-                ],
-                [element.text(srs.name)],
+                  html.h2(
+                    [
+                      attribute.class(
+                        "font-medium text-zinc-400 text-base sm:text-lg",
+                      ),
+                    ],
+                    [element.text(srs.name)],
                   )
                 True -> element.none()
               },
@@ -374,7 +374,7 @@ fn display(
                     Read
                   }),
                   button.bg(button.Primary),
-                  button.lg(),
+                  button.adaptive(),
                   attribute.class("font-semibold"),
                 ],
                 [
@@ -383,7 +383,7 @@ fn display(
                     0 -> "Start Reading"
                     _ ->
                       case srs.pages_read == srs.pages {
-                        False -> "Continue Reading"
+                        False -> "Continue"
                         True -> "Re-read"
                       }
                   }),
@@ -393,7 +393,7 @@ fn display(
                 [
                   event.on_click(RequestUpdate),
                   button.bg(button.Neutral),
-                  button.lg(),
+                  button.adaptive(),
                   attribute.class("font-medium"),
                 ],
                 [
@@ -401,7 +401,9 @@ fn display(
                     [attribute.class("ph ph-clock-counter-clockwise text-2xl")],
                     [],
                   ),
-                  element.text("Request Update"),
+                  html.span([attribute.class("max-sm:hidden")], [
+                    element.text("Request Update"),
+                  ]),
                 ],
               ),
               case m.admin {
@@ -411,7 +413,7 @@ fn display(
                     [
                       event.on_click(ShowEditor(True)),
                       button.bg(button.Neutral),
-                      button.md(),
+                      button.adaptive(),
                       attribute.class("font-medium"),
                     ],
                     [
