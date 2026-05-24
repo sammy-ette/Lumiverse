@@ -1,6 +1,7 @@
 import gleam/dynamic/decode
 import gleam/json
 import gleam/list
+import gleam/string
 import localstorage
 import lumiverse/api/api
 import rsvp
@@ -92,23 +93,22 @@ pub fn image_key(account: Account) -> String {
 
 pub type Role {
   Admin
-  Unknown
+  Unknown(String)
 }
 
 fn role_to_json(role: Role) -> json.Json {
   case role {
     Admin -> json.string("admin")
-    _ -> json.string("unknown")
+    Unknown(role) -> json.string(role)
   }
 }
 
 fn role_decoder() -> decode.Decoder(Role) {
   use variant <- decode.then(decode.string)
-  case variant {
+  case variant |> string.lowercase {
     "admin" -> decode.success(Admin)
     role -> {
-      echo "Unknown role: " <> role
-      decode.success(Unknown)
+      decode.success(Unknown(role))
     }
   }
 }
