@@ -189,145 +189,152 @@ fn view(m: Model) {
             router.Login -> login.element()
             router.Setup -> setup.element()
             route ->
-              html.div(
-                [
-                  attribute.class("w-full min-h-screen flex flex-col"),
-                ],
-                [
-                  html.nav(
+              case localstorage.read("user") {
+                Error(_) -> element.none()
+                Ok(_) -> {
+                  let acc = account.get()
+                  html.div(
                     [
-                      attribute.class(
-                        "z-50 bg-zinc-950/85 backdrop-blur-xl border-b border-zinc-600",
-                      ),
-                      case route {
-                        router.Reader(_) -> attribute.none()
-                        _ -> attribute.class("sticky top-0 left-0 right-0")
-                      },
+                      attribute.class("w-full min-h-screen flex flex-col"),
                     ],
                     [
-                      html.div(
+                      html.nav(
                         [
                           attribute.class(
-                            "flex flex-wrap items-center justify-between p-4",
+                            "z-50 bg-zinc-950/85 backdrop-blur-xl border-b border-zinc-600",
                           ),
+                          case route {
+                            router.Reader(_) -> attribute.none()
+                            _ -> attribute.class("sticky top-0 left-0 right-0")
+                          },
                         ],
                         [
-                          html.a([attribute.href("/")], [
-                            html.span(
-                              [
-                                attribute.class(
-                                  "self-center text-2xl font-extrabold flex gap-2",
-                                ),
-                              ],
-                              [
-                                element.text("Lumiverse"),
-                                tag.simple("Beta", [
-                                  attribute.class("bg-violet-500"),
-                                ]),
-                              ],
-                            ),
-                          ]),
                           html.div(
-                            [attribute.class("flex items-center gap-3")],
                             [
-                              case account.get().roles |> list.contains(account.Admin) {
-                                False -> element.none()
-                                True ->
-                                  button.button([event.on_click(ScanAll)], [
-                                    html.i(
-                                      [
-                                        attribute.class(
-                                          "ph ph-arrow-clockwise text-3xl",
-                                        ),
-                                      ],
-                                      [],
+                              attribute.class(
+                                "flex flex-wrap items-center justify-between p-4",
+                              ),
+                            ],
+                            [
+                              html.a([attribute.href("/")], [
+                                html.span(
+                                  [
+                                    attribute.class(
+                                      "self-center text-2xl font-extrabold flex gap-2",
                                     ),
-                                  ])
-                              },
-                              case account.get().roles |> list.contains(account.Admin) {
-                                False -> element.none()
-                                True ->
-                                  html.a([attribute.href("/settings")], [
-                                    button.button([], [
-                                      html.i(
-                                        [
-                                          attribute.class(
-                                            "ph ph-gear-six text-3xl",
-                                          ),
-                                        ],
-                                        [],
-                                      ),
+                                  ],
+                                  [
+                                    element.text("Lumiverse"),
+                                    tag.simple("Beta", [
+                                      attribute.class("bg-violet-500"),
                                     ]),
-                                  ])
-                              },
-                              html.div([attribute.class("relative group")], [
-                                html.button(
-                                  [
-                                    attribute.class(
-                                      "flex justify-center items-center gap-2 text-sm font-semibold text-zinc-100 hover:text-violet-400 focus:outline-none border-none bg-transparent",
-                                    ),
-                                  ],
-                                  [
-                                    html.i(
-                                      [
-                                        attribute.class(
-                                          "ph ph-user-circle text-3xl",
-                                        ),
-                                      ],
-                                      [],
-                                    ),
-                                    case m.username {
-                                      option.Some(username) ->
-                                        element.text(username)
-                                      option.None -> element.text("")
-                                    },
-                                    html.i(
-                                      [attribute.class("ph ph-caret-down")],
-                                      [],
-                                    ),
-                                  ],
-                                ),
-                                html.div(
-                                  [
-                                    attribute.class(
-                                      "invisible absolute right-0 top-full mt-2 min-w-36 rounded-md border border-zinc-700 bg-zinc-900 p-1 transition group-focus-within:visible group-active:visible",
-                                    ),
-                                  ],
-                                  [
-                                    html.a(
-                                      [
-                                        attribute.href("/signout"),
-                                        attribute.class(
-                                          "block rounded px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800",
-                                        ),
-                                      ],
-                                      [element.text("Logout")],
-                                    ),
                                   ],
                                 ),
                               ]),
+                              html.div(
+                                [attribute.class("flex items-center gap-3")],
+                                [
+                                  case acc.roles |> list.contains(account.Admin) {
+                                    False -> element.none()
+                                    True ->
+                                      button.button([event.on_click(ScanAll)], [
+                                        html.i(
+                                          [
+                                            attribute.class(
+                                              "ph ph-arrow-clockwise text-3xl",
+                                            ),
+                                          ],
+                                          [],
+                                        ),
+                                      ])
+                                  },
+                                  case acc.roles |> list.contains(account.Admin) {
+                                    False -> element.none()
+                                    True ->
+                                      html.a([attribute.href("/settings")], [
+                                        button.button([], [
+                                          html.i(
+                                            [
+                                              attribute.class(
+                                                "ph ph-gear-six text-3xl",
+                                              ),
+                                            ],
+                                            [],
+                                          ),
+                                        ]),
+                                      ])
+                                  },
+                                  html.div(
+                                    [attribute.class("relative group")],
+                                    [
+                                      html.button(
+                                        [
+                                          attribute.class(
+                                            "flex justify-center items-center gap-2 text-sm font-semibold text-zinc-100 hover:text-violet-400 focus:outline-none border-none bg-transparent",
+                                          ),
+                                        ],
+                                        [
+                                          html.i(
+                                            [
+                                              attribute.class(
+                                                "ph ph-user-circle text-3xl",
+                                              ),
+                                            ],
+                                            [],
+                                          ),
+                                          element.text(acc.username),
+                                          html.i(
+                                            [attribute.class("ph ph-caret-down")],
+                                            [],
+                                          ),
+                                        ],
+                                      ),
+                                      html.div(
+                                        [
+                                          attribute.class(
+                                            "invisible absolute right-0 top-full mt-2 min-w-36 rounded-md border border-zinc-700 bg-zinc-900 p-1 transition group-focus-within:visible group-active:visible",
+                                          ),
+                                        ],
+                                        [
+                                          html.a(
+                                            [
+                                              attribute.href("/signout"),
+                                              attribute.class(
+                                                "block rounded px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800",
+                                              ),
+                                            ],
+                                            [element.text("Logout")],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
                         ],
                       ),
+                      case route {
+                        router.Home -> home.element()
+                        router.Settings -> settings.element()
+                        router.Series(series_id) ->
+                          series.element([
+                            series.id(series_id),
+                            attribute.property(
+                              "admin",
+                              json.bool(
+                                acc.roles |> list.contains(account.Admin),
+                              ),
+                            ),
+                          ])
+                        router.Reader(id) -> reader.element([reader.id(id)])
+                        _ -> html.div([], [element.text("Page not found.")])
+                      },
                     ],
-                  ),
-                  case route {
-                    router.Home -> home.element()
-                    router.Settings -> settings.element()
-                    router.Series(series_id) ->
-                      series.element([
-                        series.id(series_id),
-                        attribute.property(
-                          "admin",
-                          json.bool(account.get().roles |> list.contains(account.Admin)),
-                        ),
-                      ])
-                    router.Reader(id) -> reader.element([reader.id(id)])
-                    _ -> html.div([], [element.text("Page not found.")])
-                  },
-                ],
-              )
+                  )
+                }
+              }
           }
       },
     ],
