@@ -1,3 +1,4 @@
+import gleam/dynamic/decode
 import gleam/int
 import gleam/javascript/array
 import gleam/list
@@ -42,6 +43,7 @@ pub fn id(id: String) {
 pub type Model {
   Model(
     id: Int,
+    loading: Bool,
     progress: option.Option(Result(reader.Progress, rsvp.Error)),
     cont_point: option.Option(reader.ContinuePoint),
     next_chapter: option.Option(Int),
@@ -60,12 +62,14 @@ pub type Msg {
   ProgressRetrieved(Result(reader.Progress, rsvp.Error))
   ContinuePointRetrieved(Result(reader.ContinuePoint, rsvp.Error))
   ChapterInfoRetrieved(Result(reader.ChapterInfo, rsvp.Error))
+  PageLoaded
 }
 
 pub fn init(_) {
   #(
     Model(
       id: 0,
+      loading: True,
       progress: option.None,
       cont_point: option.None,
       prev_chapter: option.None,
@@ -103,6 +107,7 @@ pub fn update(m: Model, msg: Msg) {
       let m =
         Model(
           ..m,
+          loading: False,
           progress: option.Some(Ok(updated_progress)),
           chapter_info: option.Some(chapter_info),
         )
@@ -237,11 +242,11 @@ pub fn update(m: Model, msg: Msg) {
 pub fn view(m: Model) {
   case m.progress {
     option.None | option.Some(Error(_)) -> element.none()
-    option.Some(Ok(progress)) -> reader(progress)
+    option.Some(Ok(progress)) -> reader(m, progress)
   }
 }
 
-fn reader(progress: reader.Progress) {
+fn reader(m: Model, progress: reader.Progress) {
   let user = account.get()
   let page_image =
     api.create_url(
@@ -361,9 +366,9 @@ fn reader(progress: reader.Progress) {
         [],
       ),
       html.div([attribute.class("flex justify-center items-center h-screen")], [
-        case True {
-          True -> element.none()
-          False ->
+        case m.loading {
+          False -> element.none()
+          True ->
             html.div(
               [
                 attribute.class(
@@ -371,11 +376,9 @@ fn reader(progress: reader.Progress) {
                 ),
               ],
               [
-                html.span(
+                html.i(
                   [
-                    attribute.class(
-                      "text-neutral-400 icon-circle-o-notch animate-spin",
-                    ),
+                    attribute.class("ph ph-spinner-ball text-4xl animate-spin"),
                   ],
                   [],
                 ),
@@ -389,7 +392,7 @@ fn reader(progress: reader.Progress) {
             ),
             attribute.id("reader-img"),
             attribute.src(page_image),
-            // event.on("load", handle_load()),
+            event.on("load", { PageLoaded |> decode.success }),
           ],
           // case model.reader_image_loaded {
           //   False -> [attribute.attribute("hidden", "")]

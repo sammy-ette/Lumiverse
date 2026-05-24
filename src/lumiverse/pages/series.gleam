@@ -427,34 +427,56 @@ fn display(
             ]),
             html.div(
               [attribute.class("flex flex-wrap gap-2")],
-              list.append([tag.list(metadata.tags)], [
-                html.span(
-                  [
-                    attribute.class("inline-flex items-center"),
-                  ],
-                  [
-                    html.i(
-                      [
-                        attribute.class(
-                          "ph-fill ph-circle "
-                          <> case metadata.publication_status {
-                            series.Ongoing -> "text-green-400"
-                            series.Hiatus -> "text-orange-400"
-                            series.Completed | series.Ended -> "text-sky-400"
-                            series.Cancelled -> "text-red-400"
-                            _ -> "text-gray-400"
-                          },
-                        ),
-                      ],
-                      [],
-                    ),
-                    tag.simple(
-                      series.publication_title(metadata.publication_status),
-                      [],
-                    ),
-                  ],
-                ),
-              ]),
+              list.append(
+                [
+                  tag.list_with_function(metadata.tags, fn(t) {
+                    [
+                      event.on("dblclick", { RemoveTag(t.id) |> decode.success }),
+                    ]
+                  }),
+                ],
+                [
+                  tag.element(
+                    [
+                      tag.color(""),
+                      attribute.class("px-4"),
+                      event.on_click(NewTag),
+                    ],
+                    [
+                      html.i(
+                        [attribute.class("ph-bold ph-plus text-[1.3rem]")],
+                        [],
+                      ),
+                    ],
+                  ),
+                  html.span(
+                    [
+                      attribute.class("inline-flex items-center"),
+                    ],
+                    [
+                      html.i(
+                        [
+                          attribute.class(
+                            "ph-fill ph-circle "
+                            <> case metadata.publication_status {
+                              series.Ongoing -> "text-green-400"
+                              series.Hiatus -> "text-orange-400"
+                              series.Completed | series.Ended -> "text-sky-400"
+                              series.Cancelled -> "text-red-400"
+                              _ -> "text-gray-400"
+                            },
+                          ),
+                        ],
+                        [],
+                      ),
+                      tag.simple(
+                        series.publication_title(metadata.publication_status),
+                        [],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ]),
         ],

@@ -1,7 +1,4 @@
-import gleam/dynamic
 import gleam/dynamic/decode
-import gleam/http
-import gleam/http/request
 import gleam/json
 import gleam/list
 import localstorage
@@ -14,16 +11,18 @@ pub type Account {
     token: String,
     refresh_token: String,
     auth_keys: List(AuthKey),
+    roles: List(Role),
   )
 }
 
 pub fn account_to_json(account: Account) -> json.Json {
-  let Account(username:, token:, refresh_token:, auth_keys:) = account
+  let Account(username:, token:, refresh_token:, auth_keys:, roles:) = account
   json.object([
     #("username", json.string(username)),
     #("token", json.string(token)),
     #("refreshToken", json.string(refresh_token)),
     #("authKeys", json.array(auth_keys, auth_key_to_json)),
+    #("roles", json.array(roles, role_to_json)),
   ])
 }
 
@@ -96,12 +95,31 @@ pub type Role {
   Unknown
 }
 
+fn role_to_json(role: Role) -> json.Json {
+  case role {
+    Admin -> json.string("admin")
+    _ -> json.string("unknown")
+  }
+}
+
+fn role_decoder() -> decode.Decoder(Role) {
+  use variant <- decode.then(decode.string)
+  case variant {
+    "admin" -> decode.success(Admin)
+    role -> {
+      echo "Unknown role: " <> role
+      decode.success(Unknown)
+    }
+  }
+}
+
 pub fn account_decoder() -> decode.Decoder(Account) {
   use username <- decode.field("username", decode.string)
   use token <- decode.field("token", decode.string)
   use refresh_token <- decode.field("refreshToken", decode.string)
   use auth_keys <- decode.field("authKeys", decode.list(auth_key_decoder()))
-  decode.success(Account(username:, token:, refresh_token:, auth_keys:))
+  use roles <- decode.field("roles", decode.list(role_decoder()))
+  decode.success(Account(username:, token:, refresh_token:, auth_keys:, roles:))
 }
 
 pub fn get() {
@@ -147,39 +165,5 @@ pub fn register(
     api.create_url("/api/account/register"),
     req_json,
     rsvp.expect_json(account_decoder(), resp),
-  )
-}
-
-fn dynamic_role(from: dynamic.Dynamic) -> Result(Role, Role) {
-  case decode.run(from, decode.string) {
-    Ok(str) ->
-      case str {
-        "Admin" -> Ok(Admin)
-        _ -> {
-          echo "unhandled role " <> str
-          Ok(Unknown)
-        }
-      }
-    Error(_) -> Error(Unknown)
-  }
-}
-
-pub fn roles(resp: api.Response(List(Role), a)) {
-  let assert Ok(req) = request.to(api.create_url("/api/account/roles"))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(
-    req,
-    rsvp.expect_json(
-      decode.list(decode.new_primitive_decoder("Role", dynamic_role)),
-      resp,
-    ),
   )
 }

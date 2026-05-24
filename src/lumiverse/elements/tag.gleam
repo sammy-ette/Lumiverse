@@ -19,9 +19,16 @@ pub const beware = ["suggestive", "ecchi", "beware-test-tag"]
 pub const tag_appearance = "font-[Poppins,sans-serif] uppercase font-bold text-[0.85rem] hover:brightness-120 cursor-pointer"
 
 pub fn list(tags: List(series.Tag)) {
+  list_with_function(tags, fn(_t) { [] })
+}
+
+pub fn list_with_function(
+  tags: List(series.Tag),
+  f: fn(series.Tag) -> List(attribute.Attribute(a)),
+) {
   html.div(
     [attribute.class("inline-flex flex-wrap gap-2")],
-    list.map(sort(tags), fn(t) { single(t, []) }),
+    list.map(sort(tags), fn(t) { single(t, f(t)) }),
   )
 }
 
@@ -48,7 +55,7 @@ pub fn element(
     [
       attribute.class(tag_appearance),
       attribute.class(
-        "flex relative group h-fit self-center items-center justify-center rounded py-0.5 px-1",
+        "flex relative group h-fit self-center items-center justify-center rounded py-0.5 px-1 select-none",
       ),
       ..attrs
     ],

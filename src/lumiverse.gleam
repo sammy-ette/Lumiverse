@@ -34,7 +34,7 @@ type Model {
     connecting: Bool,
     server_form: form.Form(String),
     server_setup_done: option.Option(Bool),
-    roles: List(account.Role),
+    username: option.Option(String),
   )
 }
 
@@ -43,7 +43,6 @@ pub type Msg {
   ConnectToServer(Result(String, form.Form(String)))
   ServerHealth(Result(response.Response(String), rsvp.Error))
   ServerSetupDone(Result(Bool, rsvp.Error))
-  RolesRetrieved(Result(List(account.Role), rsvp.Error))
   ScanAll
   ScanDone(Result(Nil, rsvp.Error))
 }
@@ -86,17 +85,15 @@ fn init(_) {
       }
     }
 
-  // let server_url = case localstorage.read("server_url") {
-  //   Ok(url) -> url |> option.Some
-  //   Error(_) ->
-  //     case router.localhost() {
-  //       True -> {
-  //         localstorage.write("server_url", common.kavita_dev_api)
-  //         common.kavita_dev_api |> option.Some
-  //       }
-  //       False -> option.None
-  //     }
-  // }
+  let username = case localstorage.read("user") {
+    Ok(user) ->
+      case json.parse(user, account.account_decoder()) {
+        Ok(acc) -> option.Some(acc.username)
+        _ -> option.None
+      }
+    _ -> option.None
+  }
+
   let server_url = case config.get("SERVER_URL") {
     "" -> localstorage.read("server_url") |> option.from_result
     server_url -> option.Some(server_url)
@@ -115,7 +112,7 @@ fn init(_) {
       connecting: False,
       server_form:,
       server_setup_done: option.None,
-      roles: [],
+      username:,
     ),
     effect.batch([
       modem.init(fn(url) { router.uri_to_route(url) |> ChangeRoute }),
@@ -129,7 +126,17 @@ fn init(_) {
 
 fn update(m: Model, msg: Msg) {
   case msg {
-    ChangeRoute(route) -> #(Model(..m, route:), effect.none())
+    ChangeRoute(route) ->
+      case route {
+        router.Logout -> {
+          let _ = localstorage.remove("user")
+          #(
+            Model(..m, route: router.Login, username: option.None),
+            modem.push("/login", option.None, option.None),
+          )
+        }
+        _ -> #(Model(..m, route:), effect.none())
+      }
     ConnectToServer(Ok(server_url)) -> #(
       Model(..m, connecting: True, server_url: option.Some(server_url)),
       api.health(server_url, ServerHealth),
@@ -156,7 +163,7 @@ fn update(m: Model, msg: Msg) {
               modem.load(path)
             }
             Error(_), True -> effect.none()
-            _, _ -> account.roles(RolesRetrieved)
+            _, _ -> effect.none()
           }
         False -> modem.push("/setup", option.None, option.None)
       }
@@ -166,8 +173,6 @@ fn update(m: Model, msg: Msg) {
       echo e
       #(m, effect.none())
     }
-    RolesRetrieved(Ok(roles)) -> #(Model(..m, roles:), effect.none())
-    RolesRetrieved(Error(_)) -> #(m, effect.none())
     ScanAll -> #(m, library.scan_all(ScanDone))
     ScanDone(_) -> #(m, effect.none())
   }
@@ -223,34 +228,85 @@ fn view(m: Model) {
                             ),
                           ]),
                           html.div(
-                            [attribute.class("flex gap-3")],
-                            case m.roles |> list.contains(account.Admin) {
-                              False -> [element.none()]
-                              True -> [
-                                button.button([event.on_click(ScanAll)], [
-                                  html.i(
-                                    [
-                                      attribute.class(
-                                        "ph ph-arrow-clockwise text-3xl",
-                                      ),
-                                    ],
-                                    [],
-                                  ),
-                                ]),
-                                html.a([attribute.href("/settings")], [
-                                  button.button([], [
+                            [attribute.class("flex items-center gap-3")],
+                            [
+                              case account.get().roles |> list.contains(account.Admin) {
+                                False -> element.none()
+                                True ->
+                                  button.button([event.on_click(ScanAll)], [
                                     html.i(
                                       [
                                         attribute.class(
-                                          "ph ph-gear-six text-3xl",
+                                          "ph ph-arrow-clockwise text-3xl",
                                         ),
                                       ],
                                       [],
                                     ),
-                                  ]),
-                                ]),
-                              ]
-                            },
+                                  ])
+                              },
+                              case account.get().roles |> list.contains(account.Admin) {
+                                False -> element.none()
+                                True ->
+                                  html.a([attribute.href("/settings")], [
+                                    button.button([], [
+                                      html.i(
+                                        [
+                                          attribute.class(
+                                            "ph ph-gear-six text-3xl",
+                                          ),
+                                        ],
+                                        [],
+                                      ),
+                                    ]),
+                                  ])
+                              },
+                              html.div([attribute.class("relative group")], [
+                                html.button(
+                                  [
+                                    attribute.class(
+                                      "flex justify-center items-center gap-2 text-sm font-semibold text-zinc-100 hover:text-violet-400 focus:outline-none border-none bg-transparent",
+                                    ),
+                                  ],
+                                  [
+                                    html.i(
+                                      [
+                                        attribute.class(
+                                          "ph ph-user-circle text-3xl",
+                                        ),
+                                      ],
+                                      [],
+                                    ),
+                                    case m.username {
+                                      option.Some(username) ->
+                                        element.text(username)
+                                      option.None -> element.text("")
+                                    },
+                                    html.i(
+                                      [attribute.class("ph ph-caret-down")],
+                                      [],
+                                    ),
+                                  ],
+                                ),
+                                html.div(
+                                  [
+                                    attribute.class(
+                                      "invisible absolute right-0 top-full mt-2 min-w-36 rounded-md border border-zinc-700 bg-zinc-900 p-1 transition group-focus-within:visible group-active:visible",
+                                    ),
+                                  ],
+                                  [
+                                    html.a(
+                                      [
+                                        attribute.href("/signout"),
+                                        attribute.class(
+                                          "block rounded px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800",
+                                        ),
+                                      ],
+                                      [element.text("Logout")],
+                                    ),
+                                  ],
+                                ),
+                              ]),
+                            ],
                           ),
                         ],
                       ),
@@ -264,7 +320,7 @@ fn view(m: Model) {
                         series.id(series_id),
                         attribute.property(
                           "admin",
-                          json.bool(m.roles |> list.contains(account.Admin)),
+                          json.bool(account.get().roles |> list.contains(account.Admin)),
                         ),
                       ])
                     router.Reader(id) -> reader.element([reader.id(id)])
