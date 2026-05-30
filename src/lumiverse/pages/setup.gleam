@@ -90,7 +90,7 @@ fn update(m: Model, msg: Msg) {
       })
     }
     RegisterResponse(Error(e)) -> {
-      case echo e {
+      case e {
         rsvp.HttpError(_) -> {
           let form =
             m.form
@@ -205,12 +205,7 @@ fn view(m: Model) {
               ),
             ),
           ]),
-          button.button(
-            [button.bg(button.Primary), button.md(), attribute.class("w-full")],
-            [
-              element.text("Register"),
-            ],
-          ),
+          button.button("Register", [button.primary(), attribute.class("w-full")]),
         ],
       ),
     ]),

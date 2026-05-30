@@ -84,16 +84,6 @@ fn update(m: Model, msg: Msg) {
                 stream.recently_updated(dash_item.order, SeriesListRetrieved)
               stream.NewlyAdded ->
                 stream.recently_added(dash_item.order, SeriesListRetrieved)
-              // stream.SmartFilter -> {
-              //   let assert option.Some(smart_filter) =
-              //     dash_item.smart_filter_encoded
-              //   series_req.decode_smart_filter(
-              //     user.token,
-              //     dash_item.order,
-              //     smart_filter,
-              //     True,
-              //   )
-              // }
               _ -> effect.none()
             }
           },
@@ -165,7 +155,7 @@ fn update(m: Model, msg: Msg) {
         option.Some(carousel) -> #(
           Model(
             ..m,
-            carousel_index: echo case
+            carousel_index: case
               m.carousel_index == list.length(carousel.items) - 1
             {
               True -> 0
@@ -217,11 +207,11 @@ fn view(m: Model) {
               html.div(
                 [attribute.class("absolute bottom-8 right-8 flex gap-4")],
                 [
-                  button.button([event.on_click(CarouselTick(-1))], [
-                    html.i([attribute.class("ph ph-caret-left text-2xl")], []),
+                  button.icon("ph ph-caret-left text-2xl", [
+                    event.on_click(CarouselTick(-1)),
                   ]),
-                  button.button([event.on_click(CarouselTick(1))], [
-                    html.i([attribute.class("ph ph-caret-right text-2xl")], []),
+                  button.icon("ph ph-caret-right text-2xl", [
+                    event.on_click(CarouselTick(1)),
                   ]),
                 ],
               ),

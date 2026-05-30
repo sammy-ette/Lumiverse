@@ -12,7 +12,6 @@ pub type ErrorType {
 }
 
 pub fn page(err: ErrorType) {
-  echo err
   let err_display = case err {
     Offline -> #(
       "(-_-;)",
@@ -40,9 +39,7 @@ pub fn page(err: ErrorType) {
       ]),
       html.p([], [element.text(err_display.1)]),
       html.a([attribute.href("/")], [
-        button.button([button.bg(button.Neutral), button.md()], [
-          element.text("Home"),
-        ]),
+        button.button("Home", [button.secondary()]),
       ]),
     ],
   )

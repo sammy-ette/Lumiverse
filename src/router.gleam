@@ -79,8 +79,6 @@ pub fn direct_lumify(rel: String) -> String {
       uri.merge(root_uri(), rel_url)
     }
   }
-  echo "call to redirect to lumify result: " <> direction |> uri.to_string
-  echo rel
   uri.to_string(direction)
 }
 
@@ -95,16 +93,6 @@ pub fn direct_with_root(root: uri.Uri, rel: String) -> String {
   let assert Ok(direction) = uri.merge(root, rel_url)
   uri.to_string(direction)
 }
-
-// pub fn change_route(rel: String) {
-//   let assert Ok(rel_url) = uri.parse(rel)
-//   let route = uri_to_route(rel_url)
-
-//   effect.from(fn(dispatch) {
-//     layout.Router(router.ChangeRoute(route))
-//     |> dispatch
-//   })
-// }
 
 pub fn get_route() -> uri.Uri {
   let assert Ok(route) =

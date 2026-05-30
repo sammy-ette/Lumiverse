@@ -9,8 +9,10 @@ import lumiverse/api/account
 import lumiverse/api/api
 import lumiverse/api/library
 import lumiverse/config
+import lumiverse/toasts
 import lumiverse/elements/button
 import lumiverse/elements/tag
+import lumiverse/pages/error
 import lumiverse/pages/home
 import lumiverse/pages/login
 import lumiverse/pages/reader
@@ -24,6 +26,7 @@ import lustre/element
 import lustre/element/html
 import lustre/event
 import modem
+import plinth/javascript/global
 import router
 import rsvp
 
@@ -35,6 +38,8 @@ type Model {
     server_form: form.Form(String),
     server_setup_done: option.Option(Bool),
     username: option.Option(String),
+    toasts: List(toasts.Toast),
+    next_toast_id: Int,
   )
 }
 
@@ -45,6 +50,8 @@ pub type Msg {
   ServerSetupDone(Result(Bool, rsvp.Error))
   ScanAll
   ScanDone(Result(Nil, rsvp.Error))
+  ShowToast(String, toasts.ToastKind)
+  DismissToast(Int)
 }
 
 pub fn main() {
@@ -113,6 +120,8 @@ fn init(_) {
       server_form:,
       server_setup_done: option.None,
       username:,
+      toasts: [],
+      next_toast_id: 0,
     ),
     effect.batch([
       modem.init(fn(url) { router.uri_to_route(url) |> ChangeRoute }),
@@ -157,7 +166,7 @@ fn update(m: Model, msg: Msg) {
     ServerSetupDone(Ok(done)) -> {
       let eff = case done {
         True ->
-          case echo localstorage.read("user"), echo m.route == router.Login {
+          case localstorage.read("user"), m.route == router.Login {
             Error(_), False -> {
               let assert Ok(path) = uri.parse("/login")
               modem.load(path)
@@ -169,12 +178,27 @@ fn update(m: Model, msg: Msg) {
       }
       #(m, eff)
     }
-    ServerSetupDone(Error(e)) -> {
-      echo e
-      #(m, effect.none())
-    }
+    ServerSetupDone(Error(_)) -> #(m, effect.none())
     ScanAll -> #(m, library.scan_all(ScanDone))
     ScanDone(_) -> #(m, effect.none())
+    ShowToast(message, kind) -> {
+      let id = m.next_toast_id
+      #(
+        Model(
+          ..m,
+          toasts: list.append(m.toasts, [toasts.Toast(id:, message:, kind:)]),
+          next_toast_id: id + 1,
+        ),
+        effect.from(fn(dispatch) {
+          global.set_timeout(3000, fn() { dispatch(DismissToast(id)) })
+          Nil
+        }),
+      )
+    }
+    DismissToast(id) -> #(
+      Model(..m, toasts: list.filter(m.toasts, fn(t) { t.id != id })),
+      effect.none(),
+    )
   }
 }
 
@@ -182,7 +206,8 @@ fn view(m: Model) {
   html.div(
     [attribute.class("bg-zinc-950 text-white font-[Poppins,sans-serif]")],
     [
-      case echo m.server_url, m.connecting {
+      toasts.toast_overlay(m.toasts, DismissToast),
+      case m.server_url, m.connecting {
         option.None, _ | option.Some(_), True -> server_url_view(m)
         option.Some(_), False ->
           case m.route {
@@ -234,81 +259,72 @@ fn view(m: Model) {
                               html.div(
                                 [attribute.class("flex items-center gap-3")],
                                 [
-                                  case acc.roles |> list.contains(account.Admin) {
+                                  case
+                                    acc.roles |> list.contains(account.Admin)
+                                  {
                                     False -> element.none()
                                     True ->
-                                      button.button([event.on_click(ScanAll)], [
+                                      button.icon(
+                                        "ph ph-arrow-clockwise text-3xl",
+                                        [
+                                          event.on_click(ScanAll),
+                                          button.ghost_inverse(),
+                                        ],
+                                      )
+                                  },
+                                  case
+                                    acc.roles |> list.contains(account.Admin)
+                                  {
+                                    False -> element.none()
+                                    True ->
+                                      button.icon_link(
+                                        "ph ph-gear text-3xl",
+                                        "/settings",
+                                        [button.ghost_inverse()],
+                                      )
+                                  },
+                                  html.div([attribute.class("relative group")], [
+                                    html.button(
+                                      [
+                                        attribute.class(
+                                          "flex justify-center items-center gap-2 text-sm font-semibold text-zinc-100 hover:text-violet-400 focus:outline-none border-none bg-transparent",
+                                        ),
+                                      ],
+                                      [
                                         html.i(
                                           [
                                             attribute.class(
-                                              "ph ph-arrow-clockwise text-3xl",
+                                              "ph ph-user-circle text-3xl",
                                             ),
                                           ],
                                           [],
                                         ),
-                                      ])
-                                  },
-                                  case acc.roles |> list.contains(account.Admin) {
-                                    False -> element.none()
-                                    True ->
-                                      html.a([attribute.href("/settings")], [
-                                        button.button([], [
-                                          html.i(
-                                            [
-                                              attribute.class(
-                                                "ph ph-gear-six text-3xl",
-                                              ),
-                                            ],
-                                            [],
-                                          ),
-                                        ]),
-                                      ])
-                                  },
-                                  html.div(
-                                    [attribute.class("relative group")],
-                                    [
-                                      html.button(
-                                        [
-                                          attribute.class(
-                                            "flex justify-center items-center gap-2 text-sm font-semibold text-zinc-100 hover:text-violet-400 focus:outline-none border-none bg-transparent",
-                                          ),
-                                        ],
-                                        [
-                                          html.i(
-                                            [
-                                              attribute.class(
-                                                "ph ph-user-circle text-3xl",
-                                              ),
-                                            ],
-                                            [],
-                                          ),
-                                          element.text(acc.username),
-                                          html.i(
-                                            [attribute.class("ph ph-caret-down")],
-                                            [],
-                                          ),
-                                        ],
-                                      ),
-                                      html.div(
-                                        [
-                                          attribute.class(
-                                            "invisible absolute right-0 top-full mt-2 min-w-36 rounded-md border border-zinc-700 bg-zinc-900 p-1 transition group-focus-within:visible group-active:visible",
-                                          ),
-                                        ],
-                                        [
-                                          html.a(
-                                            [
-                                              attribute.href("/signout"),
-                                              attribute.class(
-                                                "block rounded px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800",
-                                              ),
-                                            ],
-                                            [element.text("Logout")],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
+                                        element.text(acc.username),
+                                        html.i(
+                                          [attribute.class("ph ph-caret-down")],
+                                          [],
+                                        ),
+                                      ],
+                                    ),
+                                    html.div(
+                                      [
+                                        attribute.class(
+                                          "invisible absolute right-0 top-full mt-2 min-w-36 rounded-md border border-zinc-700 bg-zinc-900 p-1 transition group-focus-within:visible group-active:visible",
+                                        ),
+                                      ],
+                                      [
+                                        html.a(
+                                          [
+                                            attribute.href("/signout"),
+                                            attribute.class(
+                                              "block rounded px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800",
+                                            ),
+                                          ],
+                                          [element.text("Logout")],
+                                        ),
+                                      ],
+                                    ),
+                                  ]),
                                 ],
                               ),
                             ],
@@ -317,7 +333,8 @@ fn view(m: Model) {
                       ),
                       case route {
                         router.Home -> home.element()
-                        router.Settings -> settings.element()
+                        router.Settings ->
+                          settings.element([toasts.on_toast(ShowToast)])
                         router.Series(series_id) ->
                           series.element([
                             series.id(series_id),
@@ -329,7 +346,7 @@ fn view(m: Model) {
                             ),
                           ])
                         router.Reader(id) -> reader.element([reader.id(id)])
-                        _ -> html.div([], [element.text("Page not found.")])
+                        _ -> error.page(error.NotFound)
                       },
                     ],
                   )

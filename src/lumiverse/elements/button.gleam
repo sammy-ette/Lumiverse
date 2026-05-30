@@ -2,59 +2,91 @@ import lustre/attribute
 import lustre/element
 import lustre/element/html
 
-pub type Color {
-  Neutral
-  Primary
-}
-
-pub fn button(
-  attrs: List(attribute.Attribute(a)),
-  elems: List(element.Element(a)),
-) {
+fn render(
+  children: List(element.Element(msg)),
+  attrs: List(attribute.Attribute(msg)),
+) -> element.Element(msg) {
   html.button(
     [
       attribute.class(
-        "rounded flex gap-2 items-center justify-center transition hover:opacity-80 active:scale-[95%] outline-none",
+        "outline-none transition-all duration-200 active:not-disabled:scale-[95%] rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed",
       ),
       ..attrs
     ],
-    elems,
+    children,
   )
 }
 
-pub fn icon(attrs: List(attribute.Attribute(a)), icon: String) {
-  html.button(
+pub fn button(
+  label: String,
+  attrs: List(attribute.Attribute(msg)),
+) -> element.Element(msg) {
+  render([element.text(label)], attrs)
+}
+
+pub fn icon(
+  icon_class: String,
+  attrs: List(attribute.Attribute(msg)),
+) -> element.Element(msg) {
+  render(
     [
-      attribute.class(
-        "rounded-full flex gap-2 items-center justify-center transition hover:bg-white/10 active:scale-[95%] outline-none",
+      html.i(
+        [attribute.class("leading-none text-2xl"), attribute.class(icon_class)],
+        [],
       ),
     ],
-    [
-      html.i([attribute.class("ph-bold ph-" <> icon), ..attrs], []),
-    ],
+    [attribute.class("inline-flex items-center justify-center"), ..attrs],
   )
 }
 
-pub fn bg(color: Color) -> attribute.Attribute(a) {
-  case color {
-    Primary -> "bg-violet-500"
-    Neutral -> "bg-zinc-500"
-  }
-  |> attribute.class
+pub fn icon_link(
+  icon_class: String,
+  href: String,
+  attrs: List(attribute.Attribute(msg)),
+) -> element.Element(msg) {
+  html.a(
+    [
+      attribute.class("inline-flex items-center justify-center"),
+      attribute.href(href),
+    ],
+    [icon(icon_class, attrs)],
+  )
 }
 
-pub fn sm() {
-  attribute.class("px-3.5 py-1.5 text-sm")
+pub fn icon_label(
+  icon_class: String,
+  label: String,
+  attrs: List(attribute.Attribute(msg)),
+) -> element.Element(msg) {
+  render(
+    [
+      html.i([attribute.class("leading-none " <> icon_class)], []),
+      element.text(label),
+    ],
+    [attribute.class("inline-flex items-center gap-1.5"), ..attrs],
+  )
 }
 
-pub fn md() {
-  attribute.class("px-4 py-2 text-base")
+pub fn primary() -> attribute.Attribute(msg) {
+  attribute.class(
+    "px-4 py-2 bg-violet-500 hover:not-disabled:bg-violet-700 text-white",
+  )
 }
 
-pub fn lg() {
-  attribute.class("px-5 py-2.5 text-lg")
+pub fn secondary() -> attribute.Attribute(msg) {
+  attribute.class("px-4 py-2 bg-zinc-800 hover:not-disabled:bg-zinc-700")
 }
 
-pub fn adaptive() {
-  attribute.class("px-4 py-2 text-base sm:px-5 sm:py-2.5 sm:text-lg")
+pub fn ghost() -> attribute.Attribute(msg) {
+  attribute.class("text-zinc-400 hover:text-white")
+}
+
+pub fn ghost_inverse() -> attribute.Attribute(msg) {
+  attribute.class("text-white hover:text-zinc-400 ")
+}
+
+pub fn danger() -> attribute.Attribute(msg) {
+  attribute.class(
+    "px-4 py-2 border border-red-500 text-red-500 hover:not-disabled:bg-red-500/10 font-bold",
+  )
 }

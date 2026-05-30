@@ -1,12 +1,8 @@
 import gleam/dynamic/decode
-import gleam/http
-import gleam/http/request
 import gleam/int
 import gleam/json
-import gleam/result
-import lumiverse/api/account
 import lumiverse/api/api
-import rsvp
+import lumiverse/api/fetch
 
 pub type ContinuePoint {
   ContinuePoint(id: Int, pages_read: Int, pages: Int)
@@ -73,68 +69,32 @@ fn chapter_info_decoder() {
 }
 
 pub fn continue_point(series_id: Int, resp: api.Response(ContinuePoint, a)) {
-  let assert Ok(req) =
-    request.to(api.create_url(
-      "/api/reader/continue-point?seriesId=" <> int.to_string(series_id),
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, rsvp.expect_json(continue_point_decoder(), resp))
+  fetch.get(
+    "/api/reader/continue-point?seriesId=" <> int.to_string(series_id),
+    continue_point_decoder(),
+    resp,
+  )
 }
 
 pub fn progress(chapter_id: Int, resp: api.Response(Progress, a)) {
-  let assert Ok(req) =
-    request.to(api.create_url(
-      "/api/reader/get-progress?chapterId=" <> int.to_string(chapter_id),
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, rsvp.expect_json(progress_decoder(), resp))
+  fetch.get(
+    "/api/reader/get-progress?chapterId=" <> int.to_string(chapter_id),
+    progress_decoder(),
+    resp,
+  )
 }
 
 pub fn save_progress(progress: Progress, resp: api.Response(Nil, a)) {
-  let assert Ok(req) = request.to(api.create_url("/api/reader/progress"))
-
-  let req_body =
+  fetch.post_empty(
+    "/api/reader/progress",
     json.object([
       #("volumeId", json.int(progress.volume_id)),
       #("chapterId", json.int(progress.chapter_id)),
       #("pageNum", json.int(progress.page_number)),
       #("seriesId", json.int(progress.series_id)),
       #("libraryId", json.int(progress.library_id)),
-    ])
-
-  let req =
-    req
-    |> request.set_method(http.Post)
-    |> request.set_body(req_body |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(
-    req,
-    rsvp.expect_ok_response(fn(res) {
-      case res {
-        Error(e) -> Error(e)
-        Ok(_) -> Ok(Nil)
-      }
-      |> resp
-    }),
+    ]),
+    resp,
   )
 }
 
@@ -144,36 +104,14 @@ pub fn next_chapter(
   chapter_id: Int,
   resp: api.Response(Int, a),
 ) {
-  let assert Ok(req) =
-    request.to(api.create_url(
-      "/api/reader/next-chapter?seriesId="
+  fetch.get_int(
+    "/api/reader/next-chapter?seriesId="
       <> int.to_string(series_id)
       <> "&volumeId="
       <> int.to_string(volume_id)
       <> "&currentChapterId="
       <> int.to_string(chapter_id),
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(
-    req,
-    rsvp.expect_any_response(fn(res) {
-      case echo res {
-        Ok(response) -> {
-          int.parse(response.body)
-          |> result.map_error(fn(_) { rsvp.BadBody })
-          |> resp
-        }
-        Error(e) -> resp(Error(e))
-      }
-    }),
+    resp,
   )
 }
 
@@ -183,52 +121,21 @@ pub fn prev_chapter(
   chapter_id: Int,
   resp: api.Response(Int, a),
 ) {
-  let assert Ok(req) =
-    request.to(api.create_url(
-      "/api/reader/prev-chapter?seriesId="
+  fetch.get_int(
+    "/api/reader/prev-chapter?seriesId="
       <> int.to_string(series_id)
       <> "&volumeId="
       <> int.to_string(volume_id)
       <> "&currentChapterId="
       <> int.to_string(chapter_id),
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(
-    req,
-    rsvp.expect_any_response(fn(res) {
-      case echo res {
-        Ok(response) -> {
-          int.parse(response.body)
-          |> result.map_error(fn(_) { rsvp.BadBody })
-          |> resp
-        }
-        Error(e) -> resp(Error(e))
-      }
-    }),
+    resp,
   )
 }
 
 pub fn chapter_info(chapter_id: Int, resp: api.Response(ChapterInfo, a)) {
-  let assert Ok(req) =
-    request.to(api.create_url(
-      "/api/reader/chapter-info?chapterId=" <> int.to_string(chapter_id),
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, rsvp.expect_json(chapter_info_decoder(), resp))
+  fetch.get(
+    "/api/reader/chapter-info?chapterId=" <> int.to_string(chapter_id),
+    chapter_info_decoder(),
+    resp,
+  )
 }

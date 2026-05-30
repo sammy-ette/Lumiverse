@@ -1,15 +1,12 @@
 import gleam/dynamic
 import gleam/dynamic/decode
-import gleam/http
-import gleam/http/request
 import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option
 import gleam/uri
-import lumiverse/api/account
 import lumiverse/api/api
-import rsvp
+import lumiverse/api/fetch
 
 pub type LibraryConfig {
   LibraryConfig(
@@ -190,17 +187,7 @@ fn path_decoder() -> decode.Decoder(Path) {
 }
 
 pub fn scan_all(resp: api.Response(Nil, a)) {
-  let assert Ok(req) = request.to(api.create_url("/api/library/scan-all"))
-
-  let req =
-    req
-    |> request.set_method(http.Post)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, api.expect_ok_response(resp))
+  fetch.post_empty("/api/library/scan-all", json.object([]), resp)
 }
 
 pub fn to_create(lib: Library) -> LibraryCreate {
@@ -264,103 +251,45 @@ pub fn create_to_json(lib: LibraryCreate) -> json.Json {
 }
 
 pub fn all(resp: api.Response(List(Library), a)) {
-  let assert Ok(req) = request.to(api.create_url("/api/library/libraries"))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, rsvp.expect_json(decode.list(library_decoder()), resp))
+  fetch.get("/api/library/libraries", decode.list(library_decoder()), resp)
 }
 
 pub fn list_paths(path: String, resp: api.Response(List(Path), a)) {
-  let assert Ok(req) =
-    request.to(api.create_url(
-      "/api/library/list"
-      <> case path {
-        "" -> ""
-        path ->
-          "?path="
-          <> case uri.percent_decode(path) {
-            Ok(encoded) -> encoded
-            Error(_) -> path
-          }
-      },
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, rsvp.expect_json(decode.list(path_decoder()), resp))
+  let query = case path {
+    "" -> ""
+    path ->
+      "?path="
+      <> case uri.percent_decode(path) {
+        Ok(encoded) -> encoded
+        Error(_) -> path
+      }
+  }
+  fetch.get(
+    "/api/library/list" <> query,
+    decode.list(path_decoder()),
+    resp,
+  )
 }
 
 pub fn create(lib: LibraryCreate, resp: api.Response(Nil, a)) {
-  let assert Ok(req) = request.to(api.create_url("/api/library/create"))
-
-  let req =
-    req
-    |> request.set_method(http.Post)
-    |> request.set_body(create_to_json(lib) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, api.expect_ok_response(resp))
+  fetch.post_empty("/api/library/create", create_to_json(lib), resp)
 }
 
 pub fn update(lib: LibraryCreate, resp: api.Response(Nil, a)) {
-  let assert Ok(req) = request.to(api.create_url("/api/library/update"))
-
-  let req =
-    req
-    |> request.set_method(http.Post)
-    |> request.set_body(create_to_json(lib) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, api.expect_ok_response(resp))
+  fetch.post_empty("/api/library/update", create_to_json(lib), resp)
 }
 
 pub fn scan(id: Int, resp: api.Response(Nil, a)) {
-  let assert Ok(req) =
-    request.to(api.create_url(
-      "/api/library/scan?libraryId=" <> int.to_string(id),
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Post)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, api.expect_ok_response(resp))
+  fetch.post_empty(
+    "/api/library/scan?libraryId=" <> int.to_string(id),
+    json.object([]),
+    resp,
+  )
 }
 
 pub fn delete(id: Int, resp: api.Response(Nil, a)) {
-  let assert Ok(req) =
-    request.to(api.create_url(
-      "/api/library/delete?libraryId=" <> int.to_string(id),
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Delete)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, api.expect_ok_response(resp))
+  fetch.delete_empty(
+    "/api/library/delete?libraryId=" <> int.to_string(id),
+    resp,
+  )
 }

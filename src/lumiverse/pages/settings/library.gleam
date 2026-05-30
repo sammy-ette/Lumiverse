@@ -1,4 +1,5 @@
 import gleam/int
+import gleam/json
 import gleam/list
 import gleam/option
 import lumiverse/api/library
@@ -61,6 +62,7 @@ type Model {
     folder_input: String,
     exclude_input: String,
     show_menu: option.Option(Int),
+    confirm_delete: option.Option(Int),
   )
 }
 
@@ -82,6 +84,8 @@ type Msg {
   LibraryCreated(Result(Nil, rsvp.Error))
   LibraryUpdated(Result(Nil, rsvp.Error))
   ScanLibrary(Int)
+  ConfirmDelete(Int)
+  CancelDelete
   DeleteLibrary(Int)
   DeleteLibraryResult(Result(Nil, rsvp.Error))
 }
@@ -109,6 +113,7 @@ fn init(_) {
       folder_input: "",
       exclude_input: "",
       show_menu: option.None,
+      confirm_delete: option.None,
     ),
     library.all(LibrariesRetrieved),
   )
@@ -120,10 +125,7 @@ fn update(m: Model, msg: Msg) {
       Model(..m, libraries:),
       effect.none(),
     )
-    LibrariesRetrieved(Error(e)) -> {
-      echo e
-      #(m, effect.none())
-    }
+    LibrariesRetrieved(Error(_)) -> #(m, effect.none())
     ShowCreator(current_library) -> #(
       Model(
         ..m,
@@ -240,25 +242,40 @@ fn update(m: Model, msg: Msg) {
       }
     LibraryCreated(Ok(_)) -> #(
       Model(..m, show_creator: False, current_library: option.None),
-      library.all(LibrariesRetrieved),
+      effect.batch([library.all(LibrariesRetrieved), toast("Library created", "info")]),
     )
+    LibraryCreated(Error(_)) -> #(m, toast("Failed to create library", "error"))
     LibraryUpdated(Ok(_)) -> #(
       Model(..m, show_creator: False, current_library: option.None),
-      library.all(LibrariesRetrieved),
+      effect.batch([library.all(LibrariesRetrieved), toast("Library updated", "info")]),
     )
-    // TODO: Show notifs for scan/delete for UX
+    LibraryUpdated(Error(_)) -> #(m, toast("Failed to update library", "error"))
     ScanLibrary(lib_id) -> #(
       m,
-      library.scan(lib_id, fn(_) { ShowMenu(option.None) }),
+      effect.batch([
+        library.scan(lib_id, fn(_) { ShowMenu(option.None) }),
+        toast("Library scan queued", "info"),
+      ]),
     )
-    // TODO: Add confirmation dialog before delete
+    ConfirmDelete(lib_id) -> #(
+      Model(..m, confirm_delete: option.Some(lib_id)),
+      effect.none(),
+    )
+    CancelDelete -> #(Model(..m, confirm_delete: option.None), effect.none())
     DeleteLibrary(lib_id) -> #(
-      m,
-      library.delete(lib_id, fn(_) { ShowMenu(option.None) }),
+      Model(..m, confirm_delete: option.None),
+      library.delete(lib_id, DeleteLibraryResult),
     )
     DeleteLibraryResult(Ok(_)) -> #(
       Model(..m, show_menu: option.None),
-      library.all(LibrariesRetrieved),
+      effect.batch([
+        library.all(LibrariesRetrieved),
+        toast("Library deleted", "info"),
+      ]),
+    )
+    DeleteLibraryResult(Error(_)) -> #(
+      m,
+      toast("Failed to delete library", "error"),
     )
     _ -> #(m, effect.none())
   }
@@ -274,22 +291,15 @@ fn view(m: Model) {
       html.h1([attribute.class("text-5xl font-bold")], [
         element.text("Libraries"),
       ]),
-      button.button(
-        [
-          button.lg(),
-          button.bg(button.Primary),
-          attribute.class("font-bold"),
-          event.on_click(
-            ShowCreator(
-              option.Some(CurrentLibrary(default_new_library(), Create)),
-            ),
+      button.icon_label("ph-bold ph-stack-plus text-xl", "Add Library", [
+        button.primary(),
+        attribute.class("font-bold"),
+        event.on_click(
+          ShowCreator(
+            option.Some(CurrentLibrary(default_new_library(), Create)),
           ),
-        ],
-        [
-          html.i([attribute.class("ph-bold ph-stack-plus text-xl")], []),
-          element.text("Add Library"),
-        ],
-      ),
+        ),
+      ]),
     ]),
     html.table([attribute.class("w-full text-left border-collapse")], [
       html.thead([], [
@@ -374,18 +384,15 @@ fn view(m: Model) {
               ]),
               html.td([attribute.class("py-2 px-4 text-sm")], [
                 html.div([attribute.class("relative")], [
-                  button.icon(
-                    [
-                      attribute.class("p-1"),
-                      event.on_click(
-                        ShowMenu(case m.show_menu {
-                          option.Some(id) if id == lib.id -> option.None
-                          _ -> option.Some(lib.id)
-                        }),
-                      ),
-                    ],
-                    "dots-three-vertical",
-                  ),
+                  button.icon("ph ph-dots-three-vertical", [
+                    attribute.class("p-1"),
+                    event.on_click(
+                      ShowMenu(case m.show_menu {
+                        option.Some(id) if id == lib.id -> option.None
+                        _ -> option.Some(lib.id)
+                      }),
+                    ),
+                  ]),
                   case m.show_menu {
                     option.Some(id) if id == lib.id ->
                       html.div(
@@ -416,12 +423,44 @@ fn view(m: Model) {
                             [attribute.class("border-t border-zinc-700")],
                             [],
                           ),
-                          menu_item(
-                            "trash",
-                            "Delete",
-                            DeleteLibrary(lib.id),
-                            "text-red-400",
-                          ),
+                          case m.confirm_delete {
+                            option.Some(id) if id == lib.id ->
+                              html.div(
+                                [
+                                  attribute.class(
+                                    "px-3 py-2 space-y-2 text-sm",
+                                  ),
+                                ],
+                                [
+                                  html.p(
+                                    [attribute.class("text-zinc-300")],
+                                    [element.text("Delete this library?")],
+                                  ),
+                                  html.div(
+                                    [attribute.class("flex gap-2")],
+                                    [
+                                      button.button("Delete", [
+                                        attribute.type_("button"),
+                                        button.danger(),
+                                        event.on_click(DeleteLibrary(lib.id)),
+                                      ]),
+                                      button.button("Cancel", [
+                                        attribute.type_("button"),
+                                        button.secondary(),
+                                        event.on_click(CancelDelete),
+                                      ]),
+                                    ],
+                                  ),
+                                ],
+                              )
+                            _ ->
+                              menu_item(
+                                "trash",
+                                "Delete",
+                                ConfirmDelete(lib.id),
+                                "text-red-400",
+                              )
+                          },
                         ],
                       )
                     _ -> element.none()
@@ -539,9 +578,7 @@ fn creator(m: Model) {
             html.h1([attribute.class("font-bold text-xl")], [
               element.text("Add Library"),
             ]),
-            button.button([event.on_click(ShowCreator(option.None))], [
-              html.i([attribute.class("ph ph-x text-2xl")], []),
-            ]),
+            button.icon("ph ph-x text-2xl", [event.on_click(ShowCreator(option.None))]),
           ]),
           html.div(
             [attribute.class("flex-1 overflow-y-auto flex flex-col gap-4 pr-1")],
@@ -647,15 +684,11 @@ fn creator(m: Model) {
                         )
                     },
                   ]),
-                  button.button(
-                    [
-                      attribute.type_("button"),
-                      button.bg(button.Primary),
-                      button.sm(),
-                      event.on_click(AddFolder),
-                    ],
-                    [element.text("Add Folder")],
-                  ),
+                  button.button("Add Folder", [
+                    attribute.type_("button"),
+                    button.primary(),
+                    event.on_click(AddFolder),
+                  ]),
                 ]),
                 case nl.folders |> list.is_empty {
                   True -> element.none()
@@ -673,18 +706,10 @@ fn creator(m: Model) {
                             html.span([attribute.class("text-zinc-200")], [
                               element.text(f),
                             ]),
-                            button.button(
-                              [
-                                attribute.type_("button"),
-                                event.on_click(RemoveFolder(f)),
-                              ],
-                              [
-                                html.i(
-                                  [attribute.class("ph ph-x text-zinc-400")],
-                                  [],
-                                ),
-                              ],
-                            ),
+                            button.icon("ph ph-x text-zinc-400", [
+                              attribute.type_("button"),
+                              event.on_click(RemoveFolder(f)),
+                            ]),
                           ],
                         )
                       }),
@@ -700,15 +725,11 @@ fn creator(m: Model) {
                     attribute.value(m.exclude_input),
                     event.on_input(SetExcludeInput),
                   ]),
-                  button.button(
-                    [
-                      attribute.type_("button"),
-                      button.bg(button.Primary),
-                      button.sm(),
-                      event.on_click(AddExcludePattern),
-                    ],
-                    [element.text("Add Pattern")],
-                  ),
+                  button.button("Add Pattern", [
+                    attribute.type_("button"),
+                    button.primary(),
+                    event.on_click(AddExcludePattern),
+                  ]),
                 ]),
                 case nl.exclude_patterns |> list.is_empty {
                   True -> element.none()
@@ -726,22 +747,10 @@ fn creator(m: Model) {
                             html.span([attribute.class("text-zinc-200")], [
                               element.text(p),
                             ]),
-                            button.button(
-                              [
-                                attribute.type_("button"),
-                                event.on_click(RemoveExcludePattern(p)),
-                              ],
-                              [
-                                html.i(
-                                  [
-                                    attribute.class(
-                                      "ph ph-x text-zinc-400 text-xs",
-                                    ),
-                                  ],
-                                  [],
-                                ),
-                              ],
-                            ),
+                            button.icon("ph ph-x text-zinc-400 text-xs", [
+                              attribute.type_("button"),
+                              event.on_click(RemoveExcludePattern(p)),
+                            ]),
                           ],
                         )
                       }),
@@ -987,19 +996,19 @@ fn creator(m: Model) {
               ),
             ],
             [
+              button.button("Cancel", [
+                attribute.type_("button"),
+                event.on_click(ShowCreator(option.None)),
+              ]),
               button.button(
+                case m.current_library {
+                  option.Some(CurrentLibrary(_, Create)) | option.None ->
+                    "Create"
+                  option.Some(CurrentLibrary(_, Edit)) -> "Save"
+                },
                 [
                   attribute.type_("button"),
-                  button.md(),
-                  event.on_click(ShowCreator(option.None)),
-                ],
-                [element.text("Cancel")],
-              ),
-              button.button(
-                [
-                  attribute.type_("button"),
-                  button.md(),
-                  button.bg(button.Primary),
+                  button.primary(),
                   attribute.class("font-semibold"),
                   event.on_click(case m.current_library {
                     option.Some(CurrentLibrary(_, Create)) -> SubmitCreate
@@ -1007,19 +1016,21 @@ fn creator(m: Model) {
                     option.None -> SubmitCreate
                   }),
                 ],
-                [
-                  case m.current_library {
-                    option.Some(CurrentLibrary(_, Create)) ->
-                      element.text("Create")
-                    option.Some(CurrentLibrary(_, Edit)) -> element.text("Save")
-                    option.None -> element.text("Submit")
-                  },
-                ],
               ),
             ],
           ),
         ],
       ),
     ],
+  )
+}
+
+fn toast(message: String, kind: String) {
+  event.emit(
+    "toast",
+    json.object([
+      #("message", json.string(message)),
+      #("kind", json.string(kind)),
+    ]),
   )
 }

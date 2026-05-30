@@ -22,10 +22,10 @@ pub fn register() {
   lustre.register(app, "settings-page")
 }
 
-pub fn element() {
+pub fn element(attrs: List(attribute.Attribute(a))) {
   element.element(
     "settings-page",
-    [attribute.class("flex-1 flex w-full h-full flex-col p-4")],
+    [attribute.class("flex-1 flex w-full h-full flex-col p-4"), ..attrs],
     [],
   )
 }

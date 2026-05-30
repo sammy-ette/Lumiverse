@@ -23,7 +23,6 @@ import lustre/element/html
 import lustre/event
 import modem
 import plinth/browser/document
-import plinth/browser/window
 import plinth/javascript/date
 import rsvp
 
@@ -35,6 +34,7 @@ type Model {
     admin: Bool,
     show_editor: Bool,
     edit_form: form.Form(SeriesEdit),
+    new_tag_input: String,
   )
 }
 
@@ -54,7 +54,8 @@ type Msg {
   Read
   RequestUpdate
   Admin(Bool)
-  NewTag
+  UpdateNewTagInput(String)
+  SubmitNewTag
   RemoveTag(Int)
   ShowEditor(Bool)
 }
@@ -91,6 +92,7 @@ fn init(_) {
       show_editor: False,
       edit_form: editor_form(),
       details: option.None,
+      new_tag_input: "",
     ),
     effect.none(),
   )
@@ -156,10 +158,14 @@ fn update(m: Model, msg: Msg) {
     }
     ContinuePointRetrieved(Error(_)) -> #(m, effect.none())
     RequestUpdate -> #(m, effect.none())
-    NewTag ->
-      case window.prompt("Enter the tag name") {
-        Error(_) -> #(m, effect.none())
-        Ok(tag) -> #(m, series.tags(fn(res) { TagsRetrieved(tag, res) }))
+    UpdateNewTagInput(value) -> #(Model(..m, new_tag_input: value), effect.none())
+    SubmitNewTag ->
+      case string.trim(m.new_tag_input) {
+        "" -> #(m, effect.none())
+        tag -> #(
+          Model(..m, new_tag_input: ""),
+          series.tags(fn(res) { TagsRetrieved(tag, res) }),
+        )
       }
     TagsRetrieved(tag, Ok(tags)) -> {
       let assert option.Some(Ok(srs)) = m.series
@@ -367,62 +373,39 @@ fn display(
               },
             ]),
             html.div([attribute.class("flex flex-wrap gap-2")], [
-              button.button(
+              button.icon_label(
+                "ph ph-book-open-text text-2xl",
+                case srs.pages_read {
+                  0 -> "Start Reading"
+                  _ ->
+                    case srs.pages_read == srs.pages {
+                      False -> "Continue"
+                      True -> "Re-read"
+                    }
+                },
                 [
-                  event.on_click({
-                    echo "clicked"
-                    Read
-                  }),
-                  button.bg(button.Primary),
-                  button.adaptive(),
+                  event.on_click(Read),
+                  button.primary(),
                   attribute.class("font-semibold"),
                 ],
-                [
-                  html.i([attribute.class("ph ph-book-open-text text-2xl")], []),
-                  element.text(case srs.pages_read {
-                    0 -> "Start Reading"
-                    _ ->
-                      case srs.pages_read == srs.pages {
-                        False -> "Continue"
-                        True -> "Re-read"
-                      }
-                  }),
-                ],
               ),
-              button.button(
+              button.icon_label(
+                "ph ph-clock-counter-clockwise text-2xl",
+                "Request Update",
                 [
                   event.on_click(RequestUpdate),
-                  button.bg(button.Neutral),
-                  button.adaptive(),
+                  button.secondary(),
                   attribute.class("font-medium"),
-                ],
-                [
-                  html.i(
-                    [attribute.class("ph ph-clock-counter-clockwise text-2xl")],
-                    [],
-                  ),
-                  html.span([attribute.class("max-sm:hidden")], [
-                    element.text("Request Update"),
-                  ]),
                 ],
               ),
               case m.admin {
                 False -> element.none()
                 True ->
-                  button.button(
-                    [
-                      event.on_click(ShowEditor(True)),
-                      button.bg(button.Neutral),
-                      button.adaptive(),
-                      attribute.class("font-medium"),
-                    ],
-                    [
-                      html.i(
-                        [attribute.class("ph ph-pencil-simple-line text-2xl")],
-                        [],
-                      ),
-                    ],
-                  )
+                  button.icon("ph ph-pencil-simple-line text-2xl", [
+                    event.on_click(ShowEditor(True)),
+                    button.secondary(),
+                    attribute.class("font-medium"),
+                  ])
               },
             ]),
             html.div(
@@ -440,7 +423,7 @@ fn display(
                     [
                       tag.color(""),
                       attribute.class("px-4"),
-                      event.on_click(NewTag),
+                      event.on_click(ShowEditor(True)),
                     ],
                     [
                       html.i(
@@ -573,13 +556,13 @@ fn display(
                       html.h2([attribute.class("font-bold text-2xl")], [
                         element.text("Chapters"),
                       ]),
-                      button.button([button.bg(button.Neutral), button.md()], [
-                        html.i(
-                          [attribute.class("ph ph-sort-ascending text-2xl")],
-                          [],
-                        ),
-                        element.text("Ascending"),
-                      ]),
+                      button.icon_label(
+                        "ph ph-sort-ascending text-2xl",
+                        "Ascending",
+                        [
+                          button.secondary(),
+                        ],
+                      ),
                     ],
                   ),
                   html.div(
@@ -593,11 +576,21 @@ fn display(
                       ),
                       fn(chp: series.Chapter) {
                         html.div([attribute.class("w-full group")], [
-                          button.button(
+                          button.icon_label(
+                            case chp.pages_read == chp.pages && chp.pages > 0 {
+                              True ->
+                                "ph-fill ph-check-circle text-emerald-500 text-lg"
+                              False ->
+                                case chp.pages_read {
+                                  0 -> "ph ph-book text-zinc-400 text-lg"
+                                  _ ->
+                                    "ph-fill ph-book-open text-violet-400 text-lg"
+                                }
+                            },
+                            chp.title,
                             [
                               // event.on_click(layout.Read(option.Some(chp.id))),
-                              button.bg(button.Neutral),
-                              button.lg(),
+                              button.secondary(),
                               attribute.class(
                                 "group-hover:bg-zinc-700/60 w-full text-white font-medium justify-start gap-3"
                                 <> case
@@ -611,30 +604,6 @@ fn display(
                                 0 -> attribute.none()
                                 _ -> attribute.class("rounded-b-none")
                               },
-                            ],
-                            [
-                              html.i(
-                                [
-                                  attribute.class(
-                                    case
-                                      chp.pages_read == chp.pages
-                                      && chp.pages > 0
-                                    {
-                                      True ->
-                                        "ph-fill ph-check-circle text-emerald-500 text-lg"
-                                      False ->
-                                        case chp.pages_read {
-                                          0 ->
-                                            "ph ph-book text-zinc-400 text-lg"
-                                          _ ->
-                                            "ph-fill ph-book-open text-violet-400 text-lg"
-                                        }
-                                    },
-                                  ),
-                                ],
-                                [],
-                              ),
-                              element.text(chp.title),
                             ],
                           ),
                           case chp.pages_read {
@@ -695,7 +664,7 @@ fn display(
   )
 }
 
-fn editor(_m: Model, srs: series.Series, metadata: series.Metadata) {
+fn editor(m: Model, srs: series.Series, metadata: series.Metadata) {
   let submit = fn(fields) {
     editor_form()
     |> form.add_values(fields)
@@ -721,9 +690,7 @@ fn editor(_m: Model, srs: series.Series, metadata: series.Metadata) {
             html.h1([attribute.class("font-bold text-2xl")], [
               element.text("Edit Series"),
             ]),
-            button.button([event.on_click(ShowEditor(False))], [
-              html.i([attribute.class("ph ph-x text-2xl")], []),
-            ]),
+            button.icon("ph ph-x text-2xl", [event.on_click(ShowEditor(False))]),
           ]),
           html.form(
             [
@@ -755,30 +722,38 @@ fn editor(_m: Model, srs: series.Series, metadata: series.Metadata) {
               ]),
               html.div([attribute.class("space-y-2")], [
                 label("tags", "Tags"),
-                html.div([attribute.class("flex gap-2 items-center")], [
-                  html.div(
-                    [attribute.class("inline-flex flex-wrap gap-2")],
-                    list.map(metadata.tags, fn(t) {
-                      tag.single(t, [
-                        attribute.class(
-                          "active:bg-red-400/40 active:line-through",
-                        ),
-                        event.on_click(RemoveTag(t.id)),
-                      ])
-                    }),
-                  ),
-                  tag.element(
-                    [
-                      attribute.class("bg-zinc-500 px-2"),
-                      event.on_click(NewTag),
-                    ],
-                    [
-                      html.i(
-                        [attribute.class("ph-bold ph-plus text-[1rem]")],
-                        [],
+                html.div(
+                  [attribute.class("inline-flex flex-wrap gap-2 mb-2")],
+                  list.map(metadata.tags, fn(t) {
+                    tag.single(t, [
+                      attribute.class(
+                        "active:bg-red-400/40 active:line-through",
                       ),
-                    ],
-                  ),
+                      event.on_click(RemoveTag(t.id)),
+                    ])
+                  }),
+                ),
+                html.div([attribute.class("flex gap-2 items-center")], [
+                  html.input([
+                    attribute.class(
+                      "bg-zinc-700 rounded-md p-1 text-zinc-200 outline-none border-b-2 border-zinc-600 focus:border-violet-600 text-sm",
+                    ),
+                    attribute.placeholder("Add tag…"),
+                    attribute.value(m.new_tag_input),
+                    event.on_input(UpdateNewTagInput),
+                    event.on("keydown", {
+                      use key <- decode.subfield(["key"], decode.string)
+                      case key {
+                        "Enter" -> decode.success(SubmitNewTag)
+                        _ -> decode.failure(SubmitNewTag, "not enter")
+                      }
+                    }),
+                  ]),
+                  button.icon("ph ph-plus", [
+                    attribute.type_("button"),
+                    button.secondary(),
+                    event.on_click(SubmitNewTag),
+                  ]),
                 ]),
                 html.div([attribute.class("space-y-2 w-full")], [
                   label("summary", "Summary"),
@@ -793,15 +768,7 @@ fn editor(_m: Model, srs: series.Series, metadata: series.Metadata) {
                   ),
                 ]),
                 html.div([attribute.class("pt-2 sticky bottom-0 bg-zinc-800")], [
-                  button.button(
-                    [
-                      button.lg(),
-                      button.bg(button.Primary),
-                    ],
-                    [
-                      element.text("Submit"),
-                    ],
-                  ),
+                  button.button("Submit", [button.primary()]),
                 ]),
               ]),
             ],

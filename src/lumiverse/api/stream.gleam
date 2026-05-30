@@ -18,7 +18,6 @@ pub type DashboardRow {
     stream_type: StreamType,
     visible: Bool,
     smart_filter_encoded: option.Option(String),
-    //smart_filter_id: String,
   )
 }
 

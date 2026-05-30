@@ -1,15 +1,12 @@
 import gleam/dynamic
 import gleam/dynamic/decode
-import gleam/http
-import gleam/http/request
 import gleam/int
 import gleam/json
 import gleam/option
 import gleam/result
-import lumiverse/api/account
 import lumiverse/api/api
+import lumiverse/api/fetch
 import plinth/javascript/date
-import rsvp
 
 pub type Series {
   Series(
@@ -403,102 +400,45 @@ pub fn get(id: Int, resp: api.Response(Series, a)) {
     ))
   }
 
-  let assert Ok(req) =
-    request.to(api.create_url("/api/series/" <> int.to_string(id)))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, rsvp.expect_json(decoder, resp))
+  fetch.get("/api/series/" <> int.to_string(id), decoder, resp)
 }
 
 pub fn metadata(id: Int, resp: api.Response(Metadata, a)) {
-  let assert Ok(req) =
-    request.to(api.create_url(
-      "/api/series/metadata?seriesId=" <> int.to_string(id),
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, rsvp.expect_json(metadata_decoder(), resp))
+  fetch.get(
+    "/api/series/metadata?seriesId=" <> int.to_string(id),
+    metadata_decoder(),
+    resp,
+  )
 }
 
 pub fn update(series: Series, resp: api.Response(Nil, a)) {
-  let assert Ok(req) = request.to(api.create_url("/api/series/update"))
-
-  let req =
-    req
-    |> request.set_method(http.Post)
-    |> request.set_body(
-      json.object([
-        #("id", json.int(series.id)),
-        #("name", json.string(series.name)),
-        #("localizedName", json.string(series.localized_name)),
-      ])
-      |> json.to_string,
-    )
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, api.expect_ok_response(resp))
+  fetch.post_empty(
+    "/api/series/update",
+    json.object([
+      #("id", json.int(series.id)),
+      #("name", json.string(series.name)),
+      #("localizedName", json.string(series.localized_name)),
+    ]),
+    resp,
+  )
 }
 
 pub fn update_metadata(metadata: Metadata, resp: api.Response(Nil, a)) {
-  let assert Ok(req) = request.to(api.create_url("/api/series/metadata"))
-
-  let req =
-    req
-    |> request.set_method(http.Post)
-    |> request.set_body(
-      json.object([#("seriesMetadata", metadata_to_json(metadata))])
-      |> json.to_string,
-    )
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, api.expect_ok_response(resp))
+  fetch.post_empty(
+    "/api/series/metadata",
+    json.object([#("seriesMetadata", metadata_to_json(metadata))]),
+    resp,
+  )
 }
 
 pub fn tags(resp: api.Response(List(Tag), a)) {
-  let assert Ok(req) = request.to(api.create_url("/api/metadata/tags"))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, rsvp.expect_json(decode.list(tag_decoder()), resp))
+  fetch.get("/api/metadata/tags", decode.list(tag_decoder()), resp)
 }
 
 pub fn details(series_id: Int, resp: api.Response(Details, a)) {
-  let assert Ok(req) =
-    request.to(api.create_url(
-      "/api/series/series-detail?seriesId=" <> int.to_string(series_id),
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, rsvp.expect_json(details_decoder(), resp))
+  fetch.get(
+    "/api/series/series-detail?seriesId=" <> int.to_string(series_id),
+    details_decoder(),
+    resp,
+  )
 }

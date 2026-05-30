@@ -81,10 +81,7 @@ fn update(m: Model, msg: Msg) {
       Model(..m, oidc_config: option.Some(oidc_config)),
       effect.none(),
     )
-    OIDCConfig(Error(e)) -> {
-      echo e
-      #(m, effect.none())
-    }
+    OIDCConfig(Error(_)) -> #(m, effect.none())
     LoginSubmitted(Ok(login)) -> #(
       m,
       account.login(login.username, login.password, LoginResponse),
@@ -102,7 +99,7 @@ fn update(m: Model, msg: Msg) {
       })
     }
     LoginResponse(Error(e)) -> {
-      case echo e {
+      case e {
         rsvp.HttpError(_) -> {
           let form =
             m.form
@@ -198,9 +195,7 @@ fn view(m: Model) {
                       ),
                     ),
                   ]),
-                  button.button([button.md(), button.bg(button.Primary)], [
-                    element.text("Log In"),
-                  ]),
+                  button.button("Log In", [button.primary()]),
                 ],
               )
           },
@@ -222,16 +217,10 @@ fn view(m: Model) {
           case oidc.enabled {
             False -> element.none()
             True ->
-              button.button(
-                [
-                  button.md(),
-                  button.bg(button.Neutral),
-                  attribute.class("w-full"),
-                ],
-                [
-                  element.text(oidc.provider_name),
-                ],
-              )
+              button.button(oidc.provider_name, [
+                button.secondary(),
+                attribute.class("w-full"),
+              ])
           },
         ])
     },
