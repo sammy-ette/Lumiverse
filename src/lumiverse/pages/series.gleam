@@ -108,7 +108,7 @@ fn update(m: Model, msg: Msg) {
     )
     ShowEditor(show_editor) -> #(Model(..m, show_editor:), effect.none())
     SeriesRetrieved(Ok(srs)) -> {
-      document.set_title(srs.localized_name <> " | Lumiverse")
+      document.set_title(srs.name <> " | Lumiverse")
       #(
         Model(..m, series: option.Some(Ok(srs))),
         series.metadata(srs.id, MetadataRetrieved),
@@ -298,11 +298,11 @@ fn display(
                     False -> element.none()
                   },
                   html.h1([attribute.class("text-xl sm:text-5xl")], [
-                    element.text(srs.localized_name),
+                    element.text(srs.name),
                   ]),
                 ],
               ),
-              case srs.localized_name == srs.name {
+              case srs.localized_name == "" {
                 False ->
                   html.h2(
                     [
