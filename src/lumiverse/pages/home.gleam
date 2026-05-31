@@ -3,7 +3,6 @@ import gleam/dict
 import gleam/int
 import gleam/list
 import gleam/option
-import localstorage
 import lumiverse/api/series as series_api
 import lumiverse/api/stream
 import lumiverse/components

@@ -17,6 +17,7 @@ pub type Route {
   Login
   All
   Settings
+  Preferences
   Series(String)
   Search(SearchParams)
   NotFound
@@ -31,6 +32,10 @@ pub type Msg {
 }
 
 pub fn uri_to_route(uri: uri.Uri) -> Route {
+  // modem sometimes gives us a uri that doesnt have the query
+  // in the query field, but instead appends it to the path
+  // turning the uri to a string and reparsing it fixes it tho lol
+  let assert Ok(uri) = uri.parse(uri.to_string(uri))
   let params = case uri.query {
     option.Some(q) ->
       case uri.parse_query(q) {
@@ -45,10 +50,11 @@ pub fn uri_to_route(uri: uri.Uri) -> Route {
       "/" | "" -> Home
       "/setup" -> Setup
       "/settings" -> Settings
+      "/preferences" -> Preferences
       "/login" -> Login
       "/upload" -> Upload
       "/all" -> All
-      "/search" | "/search/" <> _params ->
+      "/search" | "/search" <> _params ->
         Search(SearchParams(
           query: list.key_find(params, "q") |> result.unwrap(""),
         ))

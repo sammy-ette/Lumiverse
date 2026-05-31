@@ -11,7 +11,7 @@ import gleam/string
 import gleam/uri
 import localstorage
 import lumiverse/api/account
-import lumiverse/api/api
+import lumiverse/api/image_url
 import lumiverse/api/reader
 import lumiverse/api/series
 import lumiverse/elements/button
@@ -528,14 +528,14 @@ pub fn view(m: Model) {
 
 fn reader_view(m: Model, progress: reader.Progress) {
   let user = account.get()
+  let viewport_w =
+    float.truncate(int.to_float(window.inner_width(window.self())) *. 1.25)
   let page_image_url = fn(page: Int) {
-    api.create_url(
-      "/api/reader/image?chapterId="
-      <> int.to_string(progress.chapter_id)
-      <> "&page="
-      <> int.to_string(page)
-      <> "&apiKey="
-      <> user |> account.image_key,
+    image_url.reader_page(
+      progress.chapter_id,
+      page,
+      user |> account.image_key,
+      viewport_w,
     )
   }
 
@@ -893,14 +893,18 @@ fn progress_scrubber(m: Model, progress: reader.Progress) {
 
   html.div(
     [
-      attribute.class("absolute bottom-0 left-0 right-0 z-20 flex flex-col justify-end pb-0 pt-10"),
+      attribute.class(
+        "absolute bottom-0 left-0 right-0 z-20 flex flex-col justify-end pb-0 pt-10",
+      ),
       event.on("mouseover", decode.success(ScrubberHover(True))),
       event.on("mouseleave", decode.success(ScrubberHover(False))),
     ],
     [
       html.div(
         [
-          attribute.class("flex items-center gap-2 px-3 bg-zinc-950/80 backdrop-blur-sm transition-all duration-300 ease-in-out"),
+          attribute.class(
+            "flex items-center gap-2 px-3 bg-zinc-950/80 backdrop-blur-sm transition-all duration-300 ease-in-out",
+          ),
           case m.scrubber_hovered {
             True -> attribute.class("py-1.5")
             False -> attribute.class("py-0")
@@ -918,7 +922,9 @@ fn progress_scrubber(m: Model, progress: reader.Progress) {
           ]),
           html.div(
             [
-              attribute.class("text-xs text-zinc-400 transition-all duration-300 ease-in-out"),
+              attribute.class(
+                "text-xs text-zinc-400 transition-all duration-300 ease-in-out",
+              ),
               show_label,
             ],
             [page_label],

@@ -10,14 +10,17 @@ import gleam/uri
 import localstorage
 import lumiverse/api/account
 import lumiverse/api/api
+import lumiverse/api/image_url
 import lumiverse/api/library
+import lumiverse/api/lumiverse as lumiverse_api
 import lumiverse/api/search as search_api
+import lumiverse/api/series as series_api
 import lumiverse/config
 import lumiverse/elements/button
-import lumiverse/elements/tag
 import lumiverse/pages/error
 import lumiverse/pages/home
 import lumiverse/pages/login
+import lumiverse/pages/preferences
 import lumiverse/pages/reader
 import lumiverse/pages/search
 import lumiverse/pages/series
@@ -47,6 +50,7 @@ type Model {
     next_toast_id: Int,
     search_query: String,
     search_preview: option.Option(List(search_api.SeriesSearchResult)),
+    max_age_rating: Int,
   )
 }
 
@@ -65,6 +69,8 @@ pub type Msg {
   SearchInput(String)
   SearchSubmit
   GotSearchPreview(Result(List(search_api.SeriesSearchResult), rsvp.Error))
+  GotPreferences(Result(Int, rsvp.Error))
+  SetAdultContent(Bool)
 }
 
 pub fn main() {
@@ -88,6 +94,7 @@ pub fn main() {
       let assert Ok(_) = series.register()
       let assert Ok(_) = reader.register()
       let assert Ok(_) = settings.register()
+      let assert Ok(_) = preferences.register()
       let assert Ok(_) = search.register()
       Nil
     }
@@ -138,12 +145,18 @@ fn init(_) {
       next_toast_id: 0,
       search_query: "",
       search_preview: option.None,
+      max_age_rating: 8,
     ),
     effect.batch([
       modem.init(fn(url) { router.uri_to_route(url) |> ChangeRoute }),
       case server_url {
         option.Some(server_url) -> api.health(server_url, ServerHealth)
         option.None -> effect.none()
+      },
+      case server_url, username {
+        option.Some(_), option.Some(_) ->
+          lumiverse_api.get_preferences(GotPreferences)
+        _, _ -> effect.none()
       },
     ]),
   )
@@ -216,10 +229,7 @@ fn update(m: Model, msg: Msg) {
       }
     }
     GotOIDCAccount(Ok(acc)) -> {
-      localstorage.write(
-        "user",
-        account.account_to_json(acc) |> json.to_string,
-      )
+      localstorage.write("user", account.account_to_json(acc) |> json.to_string)
       #(Model(..m, username: option.Some(acc.username)), effect.none())
     }
     GotOIDCAccount(Error(_)) -> {
@@ -273,6 +283,26 @@ fn update(m: Model, msg: Msg) {
       Model(..m, search_preview: option.None),
       effect.none(),
     )
+
+    GotPreferences(Ok(rating)) -> #(
+      Model(..m, max_age_rating: rating),
+      effect.none(),
+    )
+
+    GotPreferences(Error(_)) -> #(m, effect.none())
+
+    SetAdultContent(enabled) -> {
+      let rating =
+        case enabled {
+          True -> series_api.AdultsOnly
+          False -> series_api.Teen
+        }
+        |> series_api.age_rating_to_int
+      #(
+        Model(..m, max_age_rating: rating),
+        lumiverse_api.set_preferences(rating, GotPreferences),
+      )
+    }
   }
 }
 
@@ -379,13 +409,9 @@ fn view(m: Model) {
                                                 list.take(results, 5),
                                                 fn(r) {
                                                   let cover_url =
-                                                    api.create_url(
-                                                      "/api/image/series-cover?seriesId="
-                                                      <> int.to_string(
-                                                        r.series_id,
-                                                      )
-                                                      <> "&apiKey="
-                                                      <> account.image_key(user),
+                                                    image_url.series_cover(
+                                                      r.series_id,
+                                                      account.image_key(user),
                                                     )
                                                   html.a(
                                                     [
@@ -506,10 +532,74 @@ fn view(m: Model) {
                                     html.div(
                                       [
                                         attribute.class(
-                                          "invisible absolute right-0 top-full mt-2 min-w-36 rounded-md border border-zinc-700 bg-zinc-900 p-1 transition group-focus-within:visible group-active:visible",
+                                          "invisible absolute right-0 top-full mt-2 min-w-44 rounded-md border border-zinc-700 bg-zinc-900 p-1 transition group-focus-within:visible group-active:visible",
                                         ),
                                       ],
                                       [
+                                        html.label(
+                                          [
+                                            attribute.class(
+                                              "flex items-center justify-between rounded px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800 cursor-pointer select-none",
+                                            ),
+                                          ],
+                                          [
+                                            element.text("Adult Content"),
+                                            html.div(
+                                              [
+                                                attribute.class(
+                                                  "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors "
+                                                  <> case
+                                                    m.max_age_rating >= 18
+                                                  {
+                                                    True -> "bg-violet-500"
+                                                    False -> "bg-zinc-600"
+                                                  },
+                                                ),
+                                              ],
+                                              [
+                                                html.input([
+                                                  attribute.type_("checkbox"),
+                                                  attribute.checked(
+                                                    m.max_age_rating
+                                                    == series_api.AdultsOnly
+                                                    |> series_api.age_rating_to_int,
+                                                  ),
+                                                  attribute.class("sr-only"),
+                                                  event.on_check(
+                                                    SetAdultContent,
+                                                  ),
+                                                ]),
+                                                html.span(
+                                                  [
+                                                    attribute.class(
+                                                      "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform "
+                                                      <> case
+                                                        m.max_age_rating
+                                                        == series_api.AdultsOnly
+                                                        |> series_api.age_rating_to_int
+                                                      {
+                                                        True ->
+                                                          "translate-x-4.5"
+                                                        False ->
+                                                          "translate-x-0.5"
+                                                      },
+                                                    ),
+                                                  ],
+                                                  [],
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                        html.a(
+                                          [
+                                            attribute.href("/preferences"),
+                                            attribute.class(
+                                              "block rounded px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800",
+                                            ),
+                                          ],
+                                          [element.text("Preferences")],
+                                        ),
                                         html.a(
                                           [
                                             attribute.href("/signout"),
@@ -530,6 +620,7 @@ fn view(m: Model) {
                       ),
                       case route {
                         router.Home -> home.element()
+                        router.Preferences -> preferences.element()
                         router.Settings ->
                           settings.element([toasts.on_toast(ShowToast)])
                         router.Series(series_id) ->

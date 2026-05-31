@@ -10,7 +10,7 @@ import gleam/order
 import gleam/result
 import gleam/string
 import lumiverse/api/account
-import lumiverse/api/api
+import lumiverse/api/image_url
 import lumiverse/api/reader
 import lumiverse/api/series
 import lumiverse/elements/button
@@ -313,12 +313,7 @@ fn display(
   let new_time_range = date.get_time(date.now()) - 3 * { 24 * 60 * 60 * 1000 }
   let account = account.get()
   let cover_url =
-    api.create_url(
-      "/api/image/series-cover?seriesId="
-      <> int.to_string(srs.id)
-      <> "&apiKey="
-      <> account |> account.image_key,
-    )
+    image_url.series_cover(srs.id, account |> account.image_key)
 
   html.div(
     [
@@ -672,11 +667,9 @@ fn display(
                         }
                         let chp_count = list.length(vol.chapters)
                         cover_card(
-                          api.create_url(
-                            "/api/image/volume-cover?volumeId="
-                            <> int.to_string(vol.id)
-                            <> "&apiKey="
-                            <> account |> account.image_key,
+                          image_url.volume_cover(
+                            vol.id,
+                            account |> account.image_key,
                           ),
                           vol.name,
                           case chp_count > 1 {
@@ -700,11 +693,9 @@ fn display(
                             *. 100.0
                         }
                         cover_card(
-                          api.create_url(
-                            "/api/image/chapter-cover?chapterId="
-                            <> int.to_string(chp.id)
-                            <> "&apiKey="
-                            <> account |> account.image_key,
+                          image_url.chapter_cover(
+                            chp.id,
+                            account |> account.image_key,
                           ),
                           chp.title,
                           option.None,
@@ -741,11 +732,9 @@ fn display(
                       }
                       let chp_count = list.length(vol.chapters)
                       cover_card(
-                        api.create_url(
-                          "/api/image/volume-cover?volumeId="
-                          <> int.to_string(vol.id)
-                          <> "&apiKey="
-                          <> account |> account.image_key,
+                        image_url.volume_cover(
+                          vol.id,
+                          account |> account.image_key,
                         ),
                         vol.name,
                         case chp_count > 1 {
@@ -774,11 +763,9 @@ fn display(
                           *. 100.0
                       }
                       cover_card(
-                        api.create_url(
-                          "/api/image/chapter-cover?chapterId="
-                          <> int.to_string(chp.id)
-                          <> "&apiKey="
-                          <> account |> account.image_key,
+                        image_url.chapter_cover(
+                          chp.id,
+                          account |> account.image_key,
                         ),
                         chp.title,
                         option.None,

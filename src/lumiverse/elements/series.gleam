@@ -1,6 +1,6 @@
 import gleam/int
 import lumiverse/api/account
-import lumiverse/api/api
+import lumiverse/api/image_url
 import lumiverse/api/series
 import lustre/attribute
 import lustre/element
@@ -8,19 +8,11 @@ import lustre/element/html
 
 pub fn card(srs: series.SeriesMinimal) {
   let user = account.get()
-  let cover_url =
-    api.create_url(
-      "/api/image/series-cover?seriesId="
-      <> int.to_string(srs.id)
-      <> "&apiKey="
-      <> user |> account.image_key,
-    )
-
   html.a([attribute.href("/series/" <> int.to_string(srs.id))], [
     html.div([attribute.class("snap-start sm:w-48 w-24 space-y-2")], [
       html.img([
         attribute.attribute("loading", "lazy"),
-        attribute.src(cover_url),
+        attribute.src(image_url.series_cover(srs.id, user |> account.image_key)),
         attribute.class("rounded bg-zinc-800 w-full object-cover sm:h-72 h-44"),
       ]),
       html.div([attribute.class("font-medium text-base")], [
@@ -35,15 +27,10 @@ pub fn cover_image(
   attrs: List(attribute.Attribute(a)),
 ) {
   let user = account.get()
-  let cover_url =
-    api.create_url(
-      "/api/image/series-cover?seriesId="
-      <> int.to_string(srs.id)
-      <> "&apiKey="
-      <> user |> account.image_key,
-    )
-
-  html.img([attribute.src(cover_url), ..attrs])
+  html.img([
+    attribute.src(image_url.series_cover(srs.id, user |> account.image_key)),
+    ..attrs
+  ])
 }
 
 pub fn card_placeholder() {

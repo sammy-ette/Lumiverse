@@ -85,6 +85,21 @@ pub fn post_empty(path: String, body: json.Json, resp: api.Response(Nil, b)) {
   rsvp.send(req, api.expect_ok_response(resp))
 }
 
+pub fn put(
+  path: String,
+  body: json.Json,
+  decoder: decode.Decoder(a),
+  resp: api.Response(a, b),
+) {
+  let assert Ok(req) = request.to(api.create_url(path))
+  let req =
+    req
+    |> request.set_method(http.Put)
+    |> request.set_body(body |> json.to_string)
+    |> authed
+  rsvp.send(req, rsvp.expect_json(decoder, resp))
+}
+
 pub fn delete_empty(path: String, resp: api.Response(Nil, b)) {
   let assert Ok(req) = request.to(api.create_url(path))
   let req =
