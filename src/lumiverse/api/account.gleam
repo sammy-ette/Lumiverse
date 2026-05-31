@@ -93,23 +93,50 @@ pub fn image_key(account: Account) -> String {
 
 pub type Role {
   Admin
+  ChangePassword
+  Bookmark
+  Download
+  ChangeRestriction
+  ReadOnly
+  Login
+  Promote
   Unknown(String)
 }
 
-fn role_to_json(role: Role) -> json.Json {
+pub fn all_roles() -> List(Role) {
+  [Admin, ChangePassword, Bookmark, Download, ChangeRestriction, ReadOnly, Login, Promote]
+}
+
+pub fn role_to_string(role: Role) -> String {
   case role {
-    Admin -> json.string("admin")
-    Unknown(role) -> json.string(role)
+    Admin -> "Admin"
+    ChangePassword -> "Change Password"
+    Bookmark -> "Bookmark"
+    Download -> "Download"
+    ChangeRestriction -> "Change Restriction"
+    ReadOnly -> "Read Only"
+    Login -> "Login"
+    Promote -> "Promote"
+    Unknown(s) -> s
   }
+}
+
+fn role_to_json(role: Role) -> json.Json {
+  json.string(role_to_string(role))
 }
 
 fn role_decoder() -> decode.Decoder(Role) {
   use variant <- decode.then(decode.string)
   case variant |> string.lowercase {
     "admin" -> decode.success(Admin)
-    role -> {
-      decode.success(Unknown(role))
-    }
+    "change password" -> decode.success(ChangePassword)
+    "bookmark" -> decode.success(Bookmark)
+    "download" -> decode.success(Download)
+    "change restriction" -> decode.success(ChangeRestriction)
+    "read only" -> decode.success(ReadOnly)
+    "login" -> decode.success(Login)
+    "promote" -> decode.success(Promote)
+    role -> decode.success(Unknown(role))
   }
 }
 

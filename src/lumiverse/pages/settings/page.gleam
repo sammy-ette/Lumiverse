@@ -1,5 +1,6 @@
 import gleam/list
 import lumiverse/pages/settings/library
+import lumiverse/pages/settings/oidc
 import lustre
 import lustre/attribute
 import lustre/effect
@@ -13,10 +14,12 @@ type Model {
 
 type Msg {
   ToggleCollapse(String)
+  ChangeSubsection(String)
 }
 
 pub fn register() {
   let assert Ok(_) = library.register()
+  let assert Ok(_) = oidc.register()
 
   let app = lustre.component(init, update, view, [])
   lustre.register(app, "settings-page")
@@ -45,6 +48,10 @@ fn update(m: Model, msg: Msg) {
       }),
       effect.none(),
     )
+    ChangeSubsection(subsection) -> #(
+      Model(..m, current_subsection: subsection),
+      effect.none(),
+    )
   }
 }
 
@@ -56,6 +63,7 @@ fn view(m: Model) {
     ),
     case m.current_subsection {
       "Library" -> library.element()
+      "OIDC" -> oidc.element()
       _ -> element.none()
     },
   ])
@@ -90,19 +98,16 @@ fn section(m: Model, title: String) {
         html.div(
           [attribute.class("pl-8 flex flex-col gap-2")],
           case title {
-            "Server" -> ["Library"]
+            "Server" -> ["Library", "OIDC"]
             _ -> []
           }
             |> list.map(fn(subsection) {
               html.span(
                 [
-                  case m.current_subsection == subsection {
-                    True ->
-                      attribute.class(
-                        "hover:underline cursor-pointer text-violet-400 font-bold",
-                      )
-                    False -> attribute.none()
-                  },
+                  attribute.class(
+                    "hover:underline cursor-pointer text-violet-400 font-bold",
+                  ),
+                  event.on_click(ChangeSubsection(subsection)),
                 ],
                 [element.text(subsection)],
               )

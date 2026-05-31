@@ -337,7 +337,7 @@ fn dynamic_age_rating(from: dynamic.Dynamic) -> Result(AgeRating, AgeRating) {
   }
 }
 
-fn age_rating_to_int(rating: AgeRating) -> Int {
+pub fn age_rating_to_int(rating: AgeRating) -> Int {
   case rating {
     NotApplicable -> -1
     UnknownRating -> 0
@@ -349,6 +349,47 @@ fn age_rating_to_int(rating: AgeRating) -> Int {
     Mature17Plus -> 9
     AdultsOnly -> 13
   }
+}
+
+pub fn age_rating_from_int(n: Int) -> AgeRating {
+  case n {
+    -1 -> NotApplicable
+    1 -> RatingPending
+    2 -> EarlyChildhood
+    3 | 4 -> Everyone
+    5 | 6 | 7 -> Everyone10Plus
+    8 -> Teen
+    9 | 10 | 11 -> Mature17Plus
+    r if r >= 12 -> AdultsOnly
+    _ -> UnknownRating
+  }
+}
+
+pub fn age_rating_label(rating: AgeRating) -> String {
+  case rating {
+    NotApplicable -> "Not Applicable"
+    UnknownRating -> "Unknown"
+    RatingPending -> "Rating Pending"
+    EarlyChildhood -> "Early Childhood"
+    Everyone -> "Everyone"
+    Everyone10Plus -> "Everyone 10+"
+    Teen -> "Teen"
+    Mature17Plus -> "Mature (17+)"
+    AdultsOnly -> "Adults Only"
+  }
+}
+
+pub fn all_age_ratings() -> List(AgeRating) {
+  [
+    UnknownRating,
+    RatingPending,
+    EarlyChildhood,
+    Everyone,
+    Everyone10Plus,
+    Teen,
+    Mature17Plus,
+    AdultsOnly,
+  ]
 }
 
 pub type Publication {
