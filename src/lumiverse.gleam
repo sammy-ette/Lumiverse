@@ -327,9 +327,6 @@ fn view(m: Model) {
                                       ],
                                       [
                                         element.text("Lumiverse"),
-                                        tag.simple("Beta", [
-                                          attribute.class("bg-violet-500"),
-                                        ]),
                                       ],
                                     ),
                                   ]),
