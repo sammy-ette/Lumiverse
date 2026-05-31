@@ -1,24 +1,29 @@
 import formal/form
+import gleam/dynamic/decode
 import gleam/http/response
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option
+import gleam/string
 import gleam/uri
 import localstorage
 import lumiverse/api/account
 import lumiverse/api/api
 import lumiverse/api/library
+import lumiverse/api/search as search_api
 import lumiverse/config
-import lumiverse/toasts
 import lumiverse/elements/button
 import lumiverse/elements/tag
 import lumiverse/pages/error
 import lumiverse/pages/home
 import lumiverse/pages/login
 import lumiverse/pages/reader
+import lumiverse/pages/search
 import lumiverse/pages/series
 import lumiverse/pages/settings/page as settings
 import lumiverse/pages/setup
+import lumiverse/toasts
 import lustre
 import lustre/attribute
 import lustre/effect
@@ -40,6 +45,8 @@ type Model {
     username: option.Option(String),
     toasts: List(toasts.Toast),
     next_toast_id: Int,
+    search_query: String,
+    search_preview: option.Option(List(search_api.SeriesSearchResult)),
   )
 }
 
@@ -52,6 +59,10 @@ pub type Msg {
   ScanDone(Result(Nil, rsvp.Error))
   ShowToast(String, toasts.ToastKind)
   DismissToast(Int)
+  SearchInput(String)
+  SearchSubmit
+  GotSearchPreview(Result(List(search_api.SeriesSearchResult), rsvp.Error))
+  AccountResponse(Result(account.Account, rsvp.Error))
 }
 
 pub fn main() {
@@ -75,6 +86,7 @@ pub fn main() {
       let assert Ok(_) = series.register()
       let assert Ok(_) = reader.register()
       let assert Ok(_) = settings.register()
+      let assert Ok(_) = search.register()
       Nil
     }
     _, _ -> Nil
@@ -122,6 +134,8 @@ fn init(_) {
       username:,
       toasts: [],
       next_toast_id: 0,
+      search_query: "",
+      search_preview: option.None,
     ),
     effect.batch([
       modem.init(fn(url) { router.uri_to_route(url) |> ChangeRoute }),
@@ -135,6 +149,7 @@ fn init(_) {
 
 fn update(m: Model, msg: Msg) {
   case msg {
+    AccountResponse(_) -> #(m, effect.none())
     ChangeRoute(route) ->
       case route {
         router.Logout -> {
@@ -144,7 +159,7 @@ fn update(m: Model, msg: Msg) {
             modem.push("/login", option.None, option.None),
           )
         }
-        _ -> #(Model(..m, route:), effect.none())
+        _ -> #(Model(..m, route:, search_preview: option.None), effect.none())
       }
     ConnectToServer(Ok(server_url)) -> #(
       Model(..m, connecting: True, server_url: option.Some(server_url)),
@@ -159,7 +174,10 @@ fn update(m: Model, msg: Msg) {
       localstorage.write("server_url", server_url)
       #(
         Model(..m, connecting: False, server_url: option.Some(server_url)),
-        api.setup_done(ServerSetupDone),
+        effect.batch([
+          api.setup_done(ServerSetupDone),
+          account.refresh_token("", "", AccountResponse),
+        ]),
       )
     }
     ServerHealth(Error(_)) -> #(Model(..m, connecting: True), effect.none())
@@ -197,6 +215,33 @@ fn update(m: Model, msg: Msg) {
     }
     DismissToast(id) -> #(
       Model(..m, toasts: list.filter(m.toasts, fn(t) { t.id != id })),
+      effect.none(),
+    )
+
+    SearchInput(query) -> {
+      let eff = case string.length(query) > 1 {
+        True -> search_api.search(query, GotSearchPreview)
+        False -> effect.none()
+      }
+      #(Model(..m, search_query: query, search_preview: option.None), eff)
+    }
+
+    SearchSubmit -> #(
+      m,
+      modem.push(
+        "/search?q=" <> uri.percent_encode(m.search_query),
+        option.None,
+        option.None,
+      ),
+    )
+
+    GotSearchPreview(Ok(results)) -> #(
+      Model(..m, search_preview: option.Some(results)),
+      effect.none(),
+    )
+
+    GotSearchPreview(Error(_)) -> #(
+      Model(..m, search_preview: option.None),
       effect.none(),
     )
   }
@@ -241,24 +286,150 @@ fn view(m: Model) {
                               ),
                             ],
                             [
-                              html.a([attribute.href("/")], [
-                                html.span(
-                                  [
-                                    attribute.class(
-                                      "self-center text-2xl font-extrabold flex gap-2",
+                              html.div(
+                                [attribute.class("flex items-center gap-2")],
+                                [
+                                  html.a([attribute.href("/")], [
+                                    html.span(
+                                      [
+                                        attribute.class(
+                                          "self-center text-2xl font-extrabold flex gap-2",
+                                        ),
+                                      ],
+                                      [
+                                        element.text("Lumiverse"),
+                                        tag.simple("Beta", [
+                                          attribute.class("bg-violet-500"),
+                                        ]),
+                                      ],
                                     ),
-                                  ],
-                                  [
-                                    element.text("Lumiverse"),
-                                    tag.simple("Beta", [
-                                      attribute.class("bg-violet-500"),
-                                    ]),
-                                  ],
-                                ),
-                              ]),
+                                  ]),
+                                  html.div(
+                                    [
+                                      attribute.class(
+                                        "relative hidden md:flex items-center group ml-4",
+                                      ),
+                                    ],
+                                    [
+                                      html.input([
+                                        attribute.class(
+                                          "bg-zinc-800 rounded-full px-5 py-2.5 text-xs text-zinc-200 outline-none focus:ring-1 focus:ring-violet-500 placeholder-zinc-500 w-48",
+                                        ),
+                                        attribute.attribute(
+                                          "placeholder",
+                                          "Search...",
+                                        ),
+                                        attribute.value(m.search_query),
+                                        event.on_input(SearchInput),
+                                        event.on("keydown", {
+                                          use key <- decode.field(
+                                            "key",
+                                            decode.string,
+                                          )
+                                          case key {
+                                            "Enter" ->
+                                              decode.success(SearchSubmit)
+                                            _ ->
+                                              decode.failure(
+                                                SearchSubmit,
+                                                "not enter",
+                                              )
+                                          }
+                                        }),
+                                      ]),
+                                      case m.search_preview {
+                                        option.None -> element.none()
+                                        option.Some([]) -> element.none()
+                                        option.Some(results) -> {
+                                          let user = account.get()
+                                          html.div(
+                                            [
+                                              attribute.class(
+                                                "invisible group-focus-within:visible absolute top-full left-0 mt-1 w-full min-w-72 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden",
+                                              ),
+                                            ],
+                                            list.append(
+                                              list.map(
+                                                list.take(results, 5),
+                                                fn(r) {
+                                                  let cover_url =
+                                                    api.create_url(
+                                                      "/api/image/series-cover?seriesId="
+                                                      <> int.to_string(
+                                                        r.series_id,
+                                                      )
+                                                      <> "&apiKey="
+                                                      <> account.image_key(user),
+                                                    )
+                                                  html.a(
+                                                    [
+                                                      attribute.href(
+                                                        "/series/"
+                                                        <> int.to_string(
+                                                          r.series_id,
+                                                        ),
+                                                      ),
+                                                      attribute.class(
+                                                        "flex items-center gap-3 px-3 py-2 hover:bg-zinc-800 transition",
+                                                      ),
+                                                    ],
+                                                    [
+                                                      html.img([
+                                                        attribute.src(cover_url),
+                                                        attribute.class(
+                                                          "w-8 h-12 object-cover rounded shrink-0",
+                                                        ),
+                                                      ]),
+                                                      html.span(
+                                                        [
+                                                          attribute.class(
+                                                            "text-sm text-zinc-200 truncate",
+                                                          ),
+                                                        ],
+                                                        [element.text(r.name)],
+                                                      ),
+                                                    ],
+                                                  )
+                                                },
+                                              ),
+                                              [
+                                                html.a(
+                                                  [
+                                                    attribute.href(
+                                                      "/search?q="
+                                                      <> uri.percent_encode(
+                                                        m.search_query,
+                                                      ),
+                                                    ),
+                                                    attribute.class(
+                                                      "flex items-center justify-center px-3 py-2 text-sm text-violet-400 hover:bg-zinc-800 transition border-t border-zinc-700",
+                                                    ),
+                                                  ],
+                                                  [
+                                                    element.text(
+                                                      "See all results →",
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          )
+                                        }
+                                      },
+                                    ],
+                                  ),
+                                ],
+                              ),
                               html.div(
                                 [attribute.class("flex items-center gap-3")],
                                 [
+                                  html.div([attribute.class("md:hidden")], [
+                                    button.icon_link(
+                                      "ph ph-magnifying-glass text-3xl",
+                                      "/search",
+                                      [button.ghost_inverse()],
+                                    ),
+                                  ]),
                                   case
                                     acc.roles |> list.contains(account.Admin)
                                   {
@@ -346,6 +517,8 @@ fn view(m: Model) {
                             ),
                           ])
                         router.Reader(id) -> reader.element([reader.id(id)])
+                        router.Search(params) ->
+                          search.element([search.query(params.query)])
                         _ -> error.page(error.NotFound)
                       },
                     ],

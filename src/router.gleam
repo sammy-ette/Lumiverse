@@ -1,9 +1,15 @@
+import gleam/list
 import gleam/option
+import gleam/result
 import gleam/uri
 import lumiverse/common
 import plinth/browser/location
 
 import plinth/browser/window
+
+pub type SearchParams {
+  SearchParams(query: String)
+}
 
 pub type Route {
   Home
@@ -12,6 +18,7 @@ pub type Route {
   All
   Settings
   Series(String)
+  Search(SearchParams)
   NotFound
   Logout
   Reader(String)
@@ -24,14 +31,27 @@ pub type Msg {
 }
 
 pub fn uri_to_route(uri: uri.Uri) -> Route {
+  let params = case uri.query {
+    option.Some(q) ->
+      case uri.parse_query(q) {
+        Ok(p) -> p
+        Error(_) -> []
+      }
+    option.None -> []
+  }
+
   let router = fn(path: String) {
-    case path {
+    case echo path {
       "/" | "" -> Home
       "/setup" -> Setup
       "/settings" -> Settings
       "/login" -> Login
       "/upload" -> Upload
       "/all" -> All
+      "/search" | "/search/" <> _params ->
+        Search(SearchParams(
+          query: list.key_find(params, "q") |> result.unwrap(""),
+        ))
       "/series/" <> rest -> Series(rest)
       "/read/" <> rest -> Reader(rest)
       "/signout" -> Logout
