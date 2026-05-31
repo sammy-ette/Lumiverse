@@ -69,7 +69,7 @@ pub fn icon_label(
 
 pub fn primary() -> attribute.Attribute(msg) {
   attribute.class(
-    "px-4 py-2 bg-violet-500 hover:not-disabled:bg-violet-700 text-white",
+    "px-4 py-2 bg-violet-500 hover:not-disabled:bg-violet-400 text-white",
   )
 }
 
