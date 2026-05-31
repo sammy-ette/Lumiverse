@@ -123,7 +123,7 @@ pub type Metadata {
     translators: List(Nil),
     teams: List(Nil),
     locations: List(Nil),
-    age_rating: Int,
+    age_rating: AgeRating,
     release_year: Int,
     language: String,
     max_count: Int,
@@ -175,7 +175,10 @@ pub fn metadata_decoder() {
   use translators <- decode.field("translators", decode.success([]))
   use teams <- decode.field("teams", decode.success([]))
   use locations <- decode.field("locations", decode.success([]))
-  use age_rating <- decode.field("ageRating", decode.int)
+  use age_rating <- decode.field(
+    "ageRating",
+    decode.new_primitive_decoder("AgeRating", dynamic_age_rating),
+  )
   use release_year <- decode.field("releaseYear", decode.int)
   use language <- decode.field("language", decode.string)
   use max_count <- decode.field("maxCount", decode.int)
@@ -274,7 +277,7 @@ pub fn metadata_to_json(metadata: Metadata) -> json.Json {
     #("translators", json.preprocessed_array([])),
     #("teams", json.preprocessed_array([])),
     #("locations", json.preprocessed_array([])),
-    #("ageRating", json.int(metadata.age_rating)),
+    #("ageRating", json.int(age_rating_to_int(metadata.age_rating))),
     #("releaseYear", json.int(metadata.release_year)),
     #("language", json.string(metadata.language)),
     #("maxCount", json.int(metadata.max_count)),
@@ -302,6 +305,50 @@ pub fn metadata_to_json(metadata: Metadata) -> json.Json {
     #("coverArtistLocked", json.bool(metadata.cover_artist_locked)),
     #("releaseYearLocked", json.bool(metadata.release_year_locked)),
   ])
+}
+
+pub type AgeRating {
+  NotApplicable
+  UnknownRating
+  RatingPending
+  EarlyChildhood
+  Everyone
+  Everyone10Plus
+  Teen
+  Mature17Plus
+  AdultsOnly
+}
+
+fn dynamic_age_rating(from: dynamic.Dynamic) -> Result(AgeRating, AgeRating) {
+  case decode.run(from, decode.int) {
+    Ok(num) ->
+      Ok(case num {
+        -1 -> NotApplicable
+        1 -> RatingPending
+        2 -> EarlyChildhood
+        3 | 4 -> Everyone
+        5 | 6 | 7 -> Everyone10Plus
+        8 -> Teen
+        9 | 10 | 11 -> Mature17Plus
+        r if r >= 12 -> AdultsOnly
+        _ -> UnknownRating
+      })
+    Error(_) -> Error(UnknownRating)
+  }
+}
+
+fn age_rating_to_int(rating: AgeRating) -> Int {
+  case rating {
+    NotApplicable -> -1
+    UnknownRating -> 0
+    RatingPending -> 1
+    EarlyChildhood -> 2
+    Everyone -> 3
+    Everyone10Plus -> 5
+    Teen -> 8
+    Mature17Plus -> 9
+    AdultsOnly -> 13
+  }
 }
 
 pub type Publication {
