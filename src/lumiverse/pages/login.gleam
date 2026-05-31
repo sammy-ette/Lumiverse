@@ -8,6 +8,7 @@ import localstorage
 import lumiverse/api/account
 import lumiverse/api/api
 import lumiverse/elements/button
+import lumiverse/elements/input
 import lustre
 import lustre/attribute
 import lustre/effect
@@ -15,6 +16,7 @@ import lustre/element
 import lustre/element/html
 import lustre/event
 import modem
+import router
 import rsvp
 
 type Login {
@@ -77,10 +79,16 @@ fn init(_) {
 
 fn update(m: Model, msg: Msg) {
   case msg {
-    OIDCConfig(Ok(oidc_config)) -> #(
-      Model(..m, oidc_config: option.Some(oidc_config)),
-      effect.none(),
-    )
+    OIDCConfig(Ok(oidc_config)) -> {
+      let eff = case oidc_config.auto_login {
+        True -> {
+          let assert Ok(url) = uri.parse(router.direct("/oidc/login"))
+          modem.load(url)
+        }
+        False -> effect.none()
+      }
+      #(Model(..m, oidc_config: option.Some(oidc_config)), eff)
+    }
     OIDCConfig(Error(_)) -> #(m, effect.none())
     LoginSubmitted(Ok(login)) -> #(
       m,
@@ -123,12 +131,12 @@ fn view(m: Model) {
     |> LoginSubmitted
   }
 
+  let field_class =
+    "w-full px-3 py-2 border-b-5 border-zinc-700 focus:border-violet-600"
+
   container([
-    html.h2([attribute.class("font-bold text-2xl text-center")], [
-      element.text("Log In"),
-    ]),
     html.small(
-      [attribute.class("text-red-400 block")],
+      [attribute.class("text-red-400 block text-center")],
       list.map(form.field_error_messages(m.form, "login_error"), element.text),
     ),
     case m.oidc_config {
@@ -145,20 +153,8 @@ fn view(m: Model) {
                 ],
                 [
                   html.div([attribute.class("space-y-1")], [
-                    html.label(
-                      [
-                        attribute.for("username"),
-                        attribute.class("block text-sm text-zinc-300"),
-                      ],
-                      [
-                        element.text("Username"),
-                      ],
-                    ),
-                    html.input([
-                      attribute.class(
-                        "bg-zinc-700 rounded-md p-1 text-zinc-200 outline-none border-b-5 border-zinc-700 focus:border-violet-600",
-                      ),
-                      attribute.name("username"),
+                    input.input_with_name("Username", [
+                      attribute.class(field_class),
                       attribute.autocomplete("username"),
                     ]),
                     html.small(
@@ -170,20 +166,8 @@ fn view(m: Model) {
                     ),
                   ]),
                   html.div([attribute.class("space-y-1")], [
-                    html.label(
-                      [
-                        attribute.for("password"),
-                        attribute.class("block text-sm text-zinc-300"),
-                      ],
-                      [
-                        element.text("Password"),
-                      ],
-                    ),
-                    html.input([
-                      attribute.class(
-                        "bg-zinc-700 rounded-md p-1 text-zinc-200 outline-none border-b-5 border-zinc-700 focus:border-violet-600",
-                      ),
-                      attribute.name("password"),
+                    input.input_with_name("Password", [
+                      attribute.class(field_class),
                       attribute.type_("password"),
                       attribute.autocomplete("current-password"),
                     ]),
@@ -195,7 +179,10 @@ fn view(m: Model) {
                       ),
                     ),
                   ]),
-                  button.button("Log In", [button.primary()]),
+                  button.button("Log In", [
+                    button.primary(),
+                    attribute.class("w-full"),
+                  ]),
                 ],
               )
           },
@@ -217,9 +204,11 @@ fn view(m: Model) {
           case oidc.enabled {
             False -> element.none()
             True ->
-              button.button(oidc.provider_name, [
-                button.secondary(),
-                attribute.class("w-full"),
+              html.a([attribute.href(router.direct("/oidc/login"))], [
+                button.button(oidc.provider_name, [
+                  button.secondary(),
+                  attribute.class("w-full"),
+                ]),
               ])
           },
         ])
@@ -228,35 +217,28 @@ fn view(m: Model) {
 }
 
 fn container(contents: List(element.Element(a))) -> element.Element(a) {
-  html.main(
-    [
-      attribute.class(
-        "flex-1 flex flex-col justify-center items-center h-screen",
-      ),
-    ],
-    [
-      html.div(
-        [attribute.class("flex items-center justify-center space-x-2 mb-8")],
-        [
-          //   html.img([attribute.src(config.logo()), attribute.class("h-12")]),
-          html.span(
-            [
-              attribute.class(
-                "self-center font-['Poppins'] text-3xl md:text-5xl font-bold dark:text-white",
-              ),
-            ],
-            [element.text("Lumiverse")],
-          ),
-        ],
-      ),
-      html.div(
-        [
-          attribute.class(
-            "rounded-md bg-zinc-900 border-t-5 border-violet-500 md:px-9 md:py-6 p-4 space-y-4",
-          ),
-        ],
-        contents,
-      ),
-    ],
-  )
+  html.div([attribute.class("h-screen w-screen flex")], [
+    html.div([attribute.class("w-1 bg-violet-500 shrink-0")], []),
+    html.main(
+      [attribute.class("flex-1 flex flex-col justify-center items-center")],
+      [
+        html.div([attribute.class("w-full max-w-sm px-8 space-y-6")], [
+          html.div([attribute.class("space-y-1")], [
+            html.span(
+              [
+                attribute.class(
+                  "font-['Poppins'] text-3xl md:text-4xl font-bold dark:text-white block",
+                ),
+              ],
+              [element.text("Lumiverse")],
+            ),
+            html.p([attribute.class("text-zinc-400 text-sm")], [
+              element.text("Welcome back"),
+            ]),
+          ]),
+          ..contents
+        ]),
+      ],
+    ),
+  ])
 }

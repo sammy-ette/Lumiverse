@@ -8,3 +8,5 @@ node_modules
 #Added automatically by Lustre Dev Tools
 /.lustre
 /dist
+*.db
+/lumiverse

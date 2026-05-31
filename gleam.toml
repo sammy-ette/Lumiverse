@@ -30,7 +30,7 @@ gleeunit = "~> 1.0"
 lustre_dev_tools = ">= 2.3.6 and < 3.0.0"
 
 [tools.lustre.dev]
-proxy = { from = "/api", to = "http://localhost:5000/api" }
+proxy = { from = "/api", to = "http://localhost:8000/api" }
 
 [tools.lustre.html]
 title = "Lumiverse"

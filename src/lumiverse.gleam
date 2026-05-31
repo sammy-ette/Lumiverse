@@ -55,6 +55,9 @@ pub type Msg {
   ConnectToServer(Result(String, form.Form(String)))
   ServerHealth(Result(response.Response(String), rsvp.Error))
   ServerSetupDone(Result(Bool, rsvp.Error))
+  OIDCAuthenticated(Result(Bool, rsvp.Error))
+  GotOIDCAccount(Result(account.Account, rsvp.Error))
+  OIDCLinkCleared(Result(Nil, rsvp.Error))
   ScanAll
   ScanDone(Result(Nil, rsvp.Error))
   ShowToast(String, toasts.ToastKind)
@@ -62,7 +65,6 @@ pub type Msg {
   SearchInput(String)
   SearchSubmit
   GotSearchPreview(Result(List(search_api.SeriesSearchResult), rsvp.Error))
-  AccountResponse(Result(account.Account, rsvp.Error))
 }
 
 pub fn main() {
@@ -80,8 +82,8 @@ pub fn main() {
         }
       }
   }
-  case localstorage.read("server_url"), localstorage.read("user") {
-    Ok(_server_url), Ok(_user) -> {
+  case localstorage.read("server_url") {
+    Ok(_) -> {
       let assert Ok(_) = home.register()
       let assert Ok(_) = series.register()
       let assert Ok(_) = reader.register()
@@ -89,7 +91,7 @@ pub fn main() {
       let assert Ok(_) = search.register()
       Nil
     }
-    _, _ -> Nil
+    Error(_) -> Nil
   }
   let assert Ok(_) = lustre.start(app, "#app", Nil)
 }
@@ -149,14 +151,17 @@ fn init(_) {
 
 fn update(m: Model, msg: Msg) {
   case msg {
-    AccountResponse(_) -> #(m, effect.none())
+    OIDCLinkCleared(_) -> #(m, effect.none())
     ChangeRoute(route) ->
       case route {
         router.Logout -> {
           let _ = localstorage.remove("user")
           #(
             Model(..m, route: router.Login, username: option.None),
-            modem.push("/login", option.None, option.None),
+            effect.batch([
+              account.clear_oidc_link(OIDCLinkCleared),
+              modem.push("/login", option.None, option.None),
+            ]),
           )
         }
         _ -> #(Model(..m, route:, search_preview: option.None), effect.none())
@@ -174,29 +179,53 @@ fn update(m: Model, msg: Msg) {
       localstorage.write("server_url", server_url)
       #(
         Model(..m, connecting: False, server_url: option.Some(server_url)),
-        effect.batch([
-          api.setup_done(ServerSetupDone),
-          account.refresh_token("", "", AccountResponse),
-        ]),
+        api.setup_done(ServerSetupDone),
       )
     }
     ServerHealth(Error(_)) -> #(Model(..m, connecting: True), effect.none())
     ServerSetupDone(Ok(done)) -> {
       let eff = case done {
-        True ->
-          case localstorage.read("user"), m.route == router.Login {
-            Error(_), False -> {
-              let assert Ok(path) = uri.parse("/login")
-              modem.load(path)
-            }
-            Error(_), True -> effect.none()
-            _, _ -> effect.none()
+        True -> {
+          let has_real_token = case localstorage.read("user") {
+            Ok(user) ->
+              case json.parse(user, account.account_decoder()) {
+                Ok(acc) -> acc.token != ""
+                Error(_) -> False
+              }
+            Error(_) -> False
           }
+          case has_real_token, m.route == router.Login {
+            True, _ -> effect.none()
+            False, True -> effect.none()
+            False, False -> api.oidc_authenticated(OIDCAuthenticated)
+          }
+        }
         False -> modem.push("/setup", option.None, option.None)
       }
       #(m, eff)
     }
     ServerSetupDone(Error(_)) -> #(m, effect.none())
+    OIDCAuthenticated(Ok(True)) -> #(m, account.get_account(GotOIDCAccount))
+    OIDCAuthenticated(_) -> {
+      case m.route == router.Login {
+        True -> #(m, effect.none())
+        False -> {
+          let assert Ok(path) = uri.parse("/login")
+          #(m, modem.load(path))
+        }
+      }
+    }
+    GotOIDCAccount(Ok(acc)) -> {
+      localstorage.write(
+        "user",
+        account.account_to_json(acc) |> json.to_string,
+      )
+      #(Model(..m, username: option.Some(acc.username)), effect.none())
+    }
+    GotOIDCAccount(Error(_)) -> {
+      let assert Ok(path) = uri.parse("/login")
+      #(m, modem.load(path))
+    }
     ScanAll -> #(m, library.scan_all(ScanDone))
     ScanDone(_) -> #(m, effect.none())
     ShowToast(message, kind) -> {

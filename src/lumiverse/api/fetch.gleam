@@ -4,15 +4,25 @@ import gleam/http/request
 import gleam/int
 import gleam/json
 import gleam/result
+import localstorage
 import lumiverse/api/account
 import lumiverse/api/api
 import rsvp
 
 fn authed(req) {
-  req
-  |> request.set_header("Authorization", "Bearer " <> account.token())
-  |> request.set_header("Accept", "application/json")
-  |> request.set_header("Content-Type", "application/json")
+  let req =
+    req
+    |> request.set_header("Accept", "application/json")
+    |> request.set_header("Content-Type", "application/json")
+  case localstorage.read("user") {
+    Ok(user) ->
+      case json.parse(user, account.account_decoder()) {
+        Ok(acc) if acc.token != "" ->
+          request.set_header(req, "Authorization", "Bearer " <> acc.token)
+        _ -> req
+      }
+    Error(_) -> req
+  }
 }
 
 pub fn get(

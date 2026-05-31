@@ -115,8 +115,14 @@ fn role_decoder() -> decode.Decoder(Role) {
 
 pub fn account_decoder() -> decode.Decoder(Account) {
   use username <- decode.field("username", decode.string)
-  use token <- decode.field("token", decode.string)
-  use refresh_token <- decode.field("refreshToken", decode.string)
+  use token <- decode.field(
+    "token",
+    decode.one_of(decode.string, [decode.success("")]),
+  )
+  use refresh_token <- decode.field(
+    "refreshToken",
+    decode.one_of(decode.string, [decode.success("")]),
+  )
   use auth_keys <- decode.field("authKeys", decode.list(auth_key_decoder()))
   use roles <- decode.field("roles", decode.list(role_decoder()))
   decode.success(Account(username:, token:, refresh_token:, auth_keys:, roles:))
@@ -131,6 +137,14 @@ pub fn get() {
 pub fn token() {
   let account = get()
   account.token
+}
+
+pub fn clear_oidc_link(resp: api.Response(Nil, a)) {
+  rsvp.post(
+    api.create_url("/api/account/clear-oidc-link"),
+    json.object([]),
+    api.expect_ok_response(resp),
+  )
 }
 
 pub fn login(username: String, password: String, resp: api.Response(Account, a)) {
@@ -164,6 +178,13 @@ pub fn register(
   rsvp.post(
     api.create_url("/api/account/register"),
     req_json,
+    rsvp.expect_json(account_decoder(), resp),
+  )
+}
+
+pub fn get_account(resp: api.Response(Account, a)) {
+  rsvp.get(
+    api.create_url("/api/account"),
     rsvp.expect_json(account_decoder(), resp),
   )
 }

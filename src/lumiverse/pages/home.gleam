@@ -63,10 +63,7 @@ fn init(_) {
       carousel_index: 0,
       metadata: dict.new(),
     ),
-    case localstorage.read("user") {
-      Error(_) -> effect.none()
-      _ -> stream.dashboard(DashboardRowsRetrieved)
-    },
+    stream.dashboard(DashboardRowsRetrieved),
   )
 }
 

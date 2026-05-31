@@ -67,3 +67,10 @@ pub fn oidc(s: Response(OIDC, b)) {
 
   rsvp.get(create_url("/api/settings/oidc"), rsvp.expect_json(decoder, s))
 }
+
+pub fn oidc_authenticated(s: Response(Bool, b)) {
+  rsvp.get(
+    create_url("/api/account/oidc-authenticated"),
+    rsvp.expect_json(decode.bool, s),
+  )
+}

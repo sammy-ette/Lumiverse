@@ -1,13 +1,10 @@
 import gleam/dynamic
 import gleam/dynamic/decode
-import gleam/http
-import gleam/http/request
 import gleam/json
 import gleam/option
-import lumiverse/api/account
 import lumiverse/api/api
+import lumiverse/api/fetch
 import lumiverse/api/series
-import rsvp
 
 pub type DashboardRow {
   DashboardRow(
@@ -104,91 +101,41 @@ pub fn dashboard_recently_updated_decoder(order: Int, title: String) {
 }
 
 pub fn dashboard(resp: api.Response(List(DashboardRow), a)) {
-  let assert Ok(req) = request.to(api.create_url("/api/stream/dashboard"))
-
-  let req =
-    req
-    |> request.set_method(http.Get)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(req, rsvp.expect_json(decode.list(dashboard_row_decoder()), resp))
+  fetch.get("/api/stream/dashboard", decode.list(dashboard_row_decoder()), resp)
 }
 
 pub fn on_deck(order: Int, resp: api.Response(SeriesList, a)) {
-  let assert Ok(req) =
-    request.to(api.create_url("/api/series/on-deck?pageNumber=1&pageSize=10"))
-
-  let req =
-    req
-    |> request.set_method(http.Post)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(
-    req,
-    rsvp.expect_json(
-      decode.new_primitive_decoder(
-        "SeriesList",
-        dashboard_series_list_decoder(order, "Continue Reading"),
-      ),
-      resp,
+  fetch.post(
+    "/api/series/on-deck?pageNumber=1&pageSize=10",
+    json.object([]),
+    decode.new_primitive_decoder(
+      "SeriesList",
+      dashboard_series_list_decoder(order, "Continue Reading"),
     ),
+    resp,
   )
 }
 
 pub fn recently_added(order: Int, resp: api.Response(SeriesList, a)) {
-  let assert Ok(req) =
-    request.to(api.create_url(
-      "/api/series/recently-added-v2?pageNumber=1&pageSize=10",
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Post)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(
-    req,
-    rsvp.expect_json(
-      decode.new_primitive_decoder(
-        "SeriesList",
-        dashboard_series_list_decoder(order, "Newly Added"),
-      ),
-      resp,
+  fetch.post(
+    "/api/series/recently-added-v2?pageNumber=1&pageSize=10",
+    json.object([]),
+    decode.new_primitive_decoder(
+      "SeriesList",
+      dashboard_series_list_decoder(order, "Newly Added"),
     ),
+    resp,
   )
 }
 
 pub fn recently_updated(order: Int, resp: api.Response(SeriesList, a)) {
-  let assert Ok(req) =
-    request.to(api.create_url(
-      "/api/series/recently-updated-series?pageNumber=1&pageSize=10",
-    ))
-
-  let req =
-    req
-    |> request.set_method(http.Post)
-    |> request.set_body(json.object([]) |> json.to_string)
-    |> request.set_header("Authorization", "Bearer " <> account.token())
-    |> request.set_header("Accept", "application/json")
-    |> request.set_header("Content-Type", "application/json")
-
-  rsvp.send(
-    req,
-    rsvp.expect_json(
-      decode.new_primitive_decoder(
-        "RecentlyUpdated",
-        dashboard_recently_updated_decoder(order, "Recently Updated"),
-      ),
-      resp,
+  fetch.post(
+    "/api/series/recently-updated-series?pageNumber=1&pageSize=10",
+    json.object([]),
+    decode.new_primitive_decoder(
+      "RecentlyUpdated",
+      dashboard_recently_updated_decoder(order, "Recently Updated"),
     ),
+    resp,
   )
 }
