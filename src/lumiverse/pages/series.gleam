@@ -312,8 +312,7 @@ fn display(
 ) {
   let new_time_range = date.get_time(date.now()) - 3 * { 24 * 60 * 60 * 1000 }
   let account = account.get()
-  let cover_url =
-    image_url.series_cover(srs.id, account |> account.image_key)
+  let cover_url = image_url.series_cover(srs.id, account |> account.image_key)
 
   html.div(
     [
@@ -471,15 +470,15 @@ fn display(
                 attribute.class("font-semibold"),
               ],
             ),
-            button.icon_label(
-              "ph ph-clock-counter-clockwise text-2xl",
-              "Request Update",
-              [
-                event.on_click(RequestUpdate),
-                button.secondary(),
-                attribute.class("font-medium"),
-              ],
-            ),
+            // button.icon_label(
+            //   "ph ph-clock-counter-clockwise text-2xl",
+            //   "Request Update",
+            //   [
+            //     event.on_click(RequestUpdate),
+            //     button.secondary(),
+            //     attribute.class("font-medium"),
+            //   ],
+            // ),
             case m.admin {
               False -> element.none()
               True ->
@@ -985,8 +984,10 @@ fn cover_card(
 
 fn age_rating_color(rating: series.AgeRating) -> String {
   case rating {
-    series.RatingPending | series.EarlyChildhood | series.Everyone | series.Everyone10Plus ->
-      "bg-emerald-500/20 text-emerald-400"
+    series.RatingPending
+    | series.EarlyChildhood
+    | series.Everyone
+    | series.Everyone10Plus -> "bg-emerald-500/20 text-emerald-400"
     series.Teen -> "bg-amber-500/20 text-amber-400"
     series.Mature17Plus -> "bg-orange-500/20 text-orange-400"
     series.AdultsOnly -> "bg-red-500/20 text-red-400"
