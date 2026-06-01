@@ -494,7 +494,7 @@ fn display(
             list.append(
               [
                 tag.list_with_function(
-                  metadata.tags |> list.append(metadata.genres),
+                  metadata.genres |> list.append(metadata.tags),
                   fn(t) {
                     [
                       event.on("dblclick", { RemoveTag(t.id) |> decode.success }),
