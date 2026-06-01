@@ -45,9 +45,9 @@ fn update(m: Model, msg: Msg) {
       case enabled {
         False -> prefs.set_image_quality(None)
         True ->
-          prefs.set_image_quality(
-            Some(prefs.image_quality() |> option.unwrap(85)),
-          )
+          prefs.set_image_quality(Some(
+            prefs.image_quality() |> option.unwrap(85),
+          ))
       }
       #(m, effect.none())
     }
@@ -138,8 +138,8 @@ fn view(_m: Model) {
                   attribute.class("flex justify-between text-xs text-zinc-500"),
                 ],
                 [
-                  element.text("Smaller files"),
-                  element.text("Higher quality"),
+                  html.span([], [element.text("Less Data Usage")]),
+                  html.span([], [element.text("Higher Quality")]),
                 ],
               ),
             ])

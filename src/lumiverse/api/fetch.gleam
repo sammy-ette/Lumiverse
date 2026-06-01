@@ -25,11 +25,7 @@ fn authed(req) {
   }
 }
 
-pub fn get(
-  path: String,
-  decoder: decode.Decoder(a),
-  resp: api.Response(a, b),
-) {
+pub fn get(path: String, decoder: decode.Decoder(a), resp: api.Response(a, b)) {
   let assert Ok(req) = request.to(api.create_url(path))
   let req =
     req

@@ -1,4 +1,5 @@
 import gleam/list
+import lumiverse/pages/settings/auth_keys
 import lumiverse/pages/settings/library
 import lumiverse/pages/settings/oidc
 import lustre
@@ -18,6 +19,7 @@ type Msg {
 }
 
 pub fn register() {
+  let assert Ok(_) = auth_keys.register()
   let assert Ok(_) = library.register()
   let assert Ok(_) = oidc.register()
 
@@ -64,6 +66,7 @@ fn view(m: Model) {
     case m.current_subsection {
       "Library" -> library.element()
       "OIDC" -> oidc.element()
+      "Auth Keys" -> auth_keys.element()
       _ -> element.none()
     },
   ])
@@ -98,7 +101,7 @@ fn section(m: Model, title: String) {
         html.div(
           [attribute.class("pl-8 flex flex-col gap-2")],
           case title {
-            "Server" -> ["Library", "OIDC"]
+            "Server" -> ["Library", "OIDC", "Auth Keys"]
             _ -> []
           }
             |> list.map(fn(subsection) {

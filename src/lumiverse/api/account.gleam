@@ -60,7 +60,7 @@ fn auth_key_to_json(auth_key: AuthKey) -> json.Json {
   ])
 }
 
-fn auth_key_decoder() -> decode.Decoder(AuthKey) {
+pub fn auth_key_decoder() -> decode.Decoder(AuthKey) {
   use id <- decode.field("id", decode.int)
   use key <- decode.field("key", decode.string)
   use name <- decode.field("name", decode.string)
@@ -104,7 +104,16 @@ pub type Role {
 }
 
 pub fn all_roles() -> List(Role) {
-  [Admin, ChangePassword, Bookmark, Download, ChangeRestriction, ReadOnly, Login, Promote]
+  [
+    Admin,
+    ChangePassword,
+    Bookmark,
+    Download,
+    ChangeRestriction,
+    ReadOnly,
+    Login,
+    Promote,
+  ]
 }
 
 pub fn role_to_string(role: Role) -> String {
