@@ -20,5 +20,8 @@ WORKDIR /app
 COPY --from=backend-build  /lumiverse ./lumiverse
 COPY --from=frontend-build /build/dist ./dist
 
+VOLUME ["/app/data"]
+ENV DB_PATH=/app/data/lumiverse.db
+
 EXPOSE 8000
 ENTRYPOINT ["/app/lumiverse"]
