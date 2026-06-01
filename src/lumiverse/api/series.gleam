@@ -530,3 +530,21 @@ pub fn details(series_id: Int, resp: api.Response(Details, a)) {
     resp,
   )
 }
+
+pub type Time {
+  Time(average_hours: Float, page_count: Int)
+}
+
+fn time_decoder() -> decode.Decoder(Time) {
+  use average_hours <- decode.field("avgHours", decode.float)
+  use page_count <- decode.field("pageCount", decode.int)
+  decode.success(Time(average_hours:, page_count:))
+}
+
+pub fn time_left(series_id: Int, resp: api.Response(Time, a)) {
+  fetch.get(
+    "/api/series/time-left?seriesId=" <> int.to_string(series_id),
+    time_decoder(),
+    resp,
+  )
+}
