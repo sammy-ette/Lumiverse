@@ -19,7 +19,6 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/proxy"
-	"github.com/gofiber/fiber/v3/middleware/static"
 	"gorm.io/gorm"
 	gormlog "gorm.io/gorm/logger"
 )
@@ -364,8 +363,21 @@ func serveIndex(c fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).SendString("not found")
 	}
 	html := string(data)
+	c.Set("Cache-Control", "no-store")
 	c.Set("Content-Type", "text/html; charset=utf-8")
 	return c.SendString(html)
+}
+
+func serveAsset(path, contentType string) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return c.Status(fiber.StatusNotFound).SendString("not found")
+		}
+		c.Set("Cache-Control", "no-cache")
+		c.Set("Content-Type", contentType)
+		return c.Send(data)
+	}
 }
 
 func main() {
@@ -419,9 +431,9 @@ func main() {
 		app.All("/oidc/*", oidcProxy)
 	}
 
-	app.Get("/lumiverse.css", static.New("./dist/lumiverse.css"))
-	app.Get("/lumiverse.js", static.New("./dist/lumiverse.js"))
-	app.Get("/lumiverse.mjs", static.New("./dist/lumiverse.mjs"))
+	app.Get("/lumiverse.css", serveAsset("./dist/lumiverse.css", "text/css; charset=utf-8"))
+	app.Get("/lumiverse.js", serveAsset("./dist/lumiverse.js", "application/javascript; charset=utf-8"))
+	app.Get("/lumiverse.mjs", serveAsset("./dist/lumiverse.mjs", "application/javascript; charset=utf-8"))
 	app.Get("/*", serveIndex)
 
 	port := os.Getenv("PORT")
