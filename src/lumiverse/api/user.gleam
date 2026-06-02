@@ -81,7 +81,7 @@ pub fn user_decoder() -> decode.Decoder(User) {
 }
 
 pub fn all(resp) {
-  fetch.get("/api/users", decode.list(user_decoder()), resp)
+  fetch.get("/api/users?includePending=true", decode.list(user_decoder()), resp)
 }
 
 pub fn update(

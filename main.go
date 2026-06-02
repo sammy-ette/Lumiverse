@@ -91,7 +91,7 @@ func kavitaDo(method, path string, body io.Reader) (*http.Response, error) {
 }
 
 func getUserByUsername(username string) (*KavitaUser, error) {
-	resp, err := kavitaDo(http.MethodGet, "/api/users", nil)
+	resp, err := kavitaDo(http.MethodGet, "/api/users?includePending=true", nil)
 	if err != nil {
 		return nil, err
 	}
