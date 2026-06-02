@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -24,8 +25,14 @@ import (
 )
 
 var (
-	db           *gorm.DB
-	httpClient   = &http.Client{Timeout: 10 * time.Second}
+	db               *gorm.DB
+	httpClient       = &http.Client{Timeout: 10 * time.Second}
+	noRedirectClient = &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 	kavitaURL    string
 	kavitaAPIKey string
 	serverURL    string
@@ -204,16 +211,132 @@ func updatePreferences(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"maxAgeRating": body.MaxAgeRating})
 }
 
+// fixCookieAttrs rewrites Set-Cookie attributes from Kavita so they work when
+// served through Lumiverse:
+//   - Strips Domain so the cookie is scoped to serverURL's host, not Kavita's.
+//   - Adds Secure when SameSite=None is present but Secure is missing (Chrome 80+
+//     rejects SameSite=None without Secure, so the browser would drop the cookie).
+func fixCookieAttrs(v string) string {
+	parts := strings.Split(v, ";")
+	if len(parts) == 0 {
+		return v
+	}
+	hasSecure := false
+	hasSameSiteNone := false
+	out := []string{parts[0]}
+	for _, part := range parts[1:] {
+		trimmed := strings.TrimSpace(part)
+		lower := strings.ToLower(trimmed)
+		switch {
+		case lower == "secure":
+			hasSecure = true
+			out = append(out, trimmed)
+		case lower == "samesite=none":
+			hasSameSiteNone = true
+			out = append(out, trimmed)
+		case strings.HasPrefix(lower, "domain="):
+			// Drop explicit Domain; let the browser bind the cookie to the
+			// host it received the response from (serverURL), not Kavita's host.
+		default:
+			out = append(out, trimmed)
+		}
+	}
+	if hasSameSiteNone && !hasSecure {
+		out = append(out, "Secure")
+	}
+	return strings.Join(out, "; ")
+}
+
+func oidcProxy(c fiber.Ctx) error {
+	req, err := http.NewRequest(c.Method(), kavitaURL+c.OriginalURL(), bytes.NewReader(c.Body()))
+	if err != nil {
+		return c.Status(fiber.StatusBadGateway).SendString("proxy error")
+	}
+	for k, v := range c.Request().Header.All() {
+		if !strings.EqualFold(string(k), "Host") {
+			req.Header.Set(string(k), string(v))
+		}
+	}
+	// fasthttp stores cookies in a separate internal buffer; Peek("Cookie") reconstructs
+	// the full header from that store, ensuring it's forwarded even if Header.All() misses it.
+	if cookie := string(c.Request().Header.Peek("Cookie")); cookie != "" {
+		req.Header.Set("Cookie", cookie)
+	}
+	// Set Host to serverURL's host so Kavita builds redirect_uri from the
+	// external hostname, not its internal Docker hostname. ASP.NET Core reads
+	// Request.Host directly from this header without any KnownProxies check,
+	// and Kavita's own event handler already upgrades http:// → https://.
+	if serverURL != "" {
+		if u, err := url.Parse(serverURL); err == nil {
+			req.Host = u.Host
+		}
+	}
+	resp, err := noRedirectClient.Do(req)
+	if err != nil {
+		return c.Status(fiber.StatusBadGateway).SendString("proxy error")
+	}
+	defer resp.Body.Close()
+
+	for k, vs := range resp.Header {
+		for _, v := range vs {
+			if strings.EqualFold(k, "Set-Cookie") {
+				// Use the raw fasthttp Add so each Set-Cookie stays as its own
+				// header line. c.Append joins multiple values with ", " which
+				// makes the browser treat both cookies as one mangled cookie.
+				c.Response().Header.Add(k, fixCookieAttrs(v))
+			} else {
+				c.Response().Header.Add(k, v)
+			}
+		}
+	}
+
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		location := resp.Header.Get("Location")
+		if serverURL != "" && kavitaURL != "" && location != "" {
+			if u, err := url.Parse(location); err == nil {
+				// Rewrite redirect_uri by operating on the raw query string directly.
+				// Using url.Values.Encode() would re-sort and re-encode all parameters,
+				// which can subtly alter the state blob and break ASP.NET Core's
+				// data-protection decryption on the callback.
+				// Kavita always generates https:// for redirect_uri even when
+				// kavitaURL uses http:// (e.g. internal Docker address). Try
+				// both schemes so the replacement works either way.
+				rawQuery := u.RawQuery
+				encodedServer := url.QueryEscape(serverURL)
+				kavitaHost := strings.TrimPrefix(strings.TrimPrefix(kavitaURL, "https://"), "http://")
+				for _, scheme := range []string{"http", "https"} {
+					encoded := url.QueryEscape(scheme + "://" + kavitaHost)
+					replaced := strings.Replace(rawQuery, "redirect_uri="+encoded, "redirect_uri="+encodedServer, 1)
+					if replaced != rawQuery {
+						rawQuery = replaced
+						break
+					}
+				}
+				u.RawQuery = rawQuery
+				location = u.String()
+			}
+		}
+		c.Set("Location", location)
+		return c.SendStatus(resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return c.Status(fiber.StatusBadGateway).SendString("proxy error")
+	}
+	return c.Status(resp.StatusCode).Send(body)
+}
+
 func serveIndex(c fiber.Ctx) error {
 	data, err := os.ReadFile("./dist/index.html")
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).SendString("not found")
 	}
 	html := string(data)
-	if serverURL != "" {
-		html = strings.Replace(html, "</head>",
-			"<script>window.config = { SERVER_URL: '"+serverURL+"' }</script></head>", 1)
-	}
+	// if serverURL != "" {
+	// 	html = strings.Replace(html, "</head>",
+	// 		"<script>window.config = { SERVER_URL: '"+serverURL+"' }</script></head>", 1)
+	// }
 	c.Set("Content-Type", "text/html; charset=utf-8")
 	return c.SendString(html)
 }
@@ -266,12 +389,8 @@ func main() {
 		app.All("/api/*", func(c fiber.Ctx) error {
 			return proxy.Do(c, kavitaURL+c.OriginalURL())
 		})
-		app.All("/signin-oidc", func(c fiber.Ctx) error {
-			return proxy.Do(c, kavitaURL+c.OriginalURL())
-		})
-		app.All("/oidc/*", func(c fiber.Ctx) error {
-			return proxy.Do(c, kavitaURL+c.OriginalURL())
-		})
+		app.All("/signin-oidc", oidcProxy)
+		app.All("/oidc/*", oidcProxy)
 	}
 
 	app.Get("/lumiverse.css", static.New("./dist/lumiverse.css"))
