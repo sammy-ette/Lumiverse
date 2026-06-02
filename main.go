@@ -135,7 +135,43 @@ func validateToken(authHeader string) (*KavitaAccount, error) {
 	return &account, nil
 }
 
+func validateCookie(cookie string) (*KavitaAccount, error) {
+	req, err := http.NewRequest(http.MethodGet, kavitaURL+"/api/account", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Cookie", cookie)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("unauthorized")
+	}
+
+	var account KavitaAccount
+	json.NewDecoder(resp.Body).Decode(&account)
+	if account.Username == "" {
+		return nil, errors.New("empty username from kavita")
+	}
+	return &account, nil
+}
+
 func authRequired(c fiber.Ctx) error {
+	cookie := string(c.Request().Header.Peek("Cookie"))
+	if cookie != "" {
+		account, err := validateCookie(cookie)
+		if err == nil {
+			c.Locals("account", account)
+			return c.Next()
+		}
+		log.Printf("auth cookie: %v", err)
+	}
+
 	auth := c.Get("Authorization")
 	if auth == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
