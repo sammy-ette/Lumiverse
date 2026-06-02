@@ -75,7 +75,7 @@ pub fn toast_overlay(
       ),
     ],
     list.map(toasts, fn(t) {
-      html.div([attribute.class("pointer-events-auto w-80")], [
+      html.div([attribute.class("pointer-events-auto w-80 animate-[toast-in_0.2s_ease-out]")], [
         render_toast(t, on_dismiss),
       ])
     }),
