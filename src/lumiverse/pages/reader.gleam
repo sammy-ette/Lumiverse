@@ -133,7 +133,11 @@ pub fn register() {
 }
 
 pub fn element(attrs: List(attribute.Attribute(a))) {
-  element.element("reader-page", [attribute.class("w-full"), ..attrs], [])
+  element.element(
+    "reader-page",
+    [attribute.class("w-full h-screen block"), ..attrs],
+    [],
+  )
 }
 
 pub fn id(id: String) {
@@ -467,7 +471,12 @@ pub fn update(m: Model, msg: Msg) {
         False -> #(
           Model(..m, zen: True),
           effect.from(fn(_) {
-            let _ = plinth_element.request_fullscreen(document.body())
+            let assert Ok(host) =
+              document.get_elements_by_tag_name("reader-page") |> array.get(0)
+            let assert Ok(root) = shadow.shadow_root(host)
+            let assert Ok(reader_div) =
+              shadow.query_selector(root, "#reader-page")
+            let _ = plinth_element.request_fullscreen(reader_div)
             Nil
           }),
         )
@@ -542,7 +551,8 @@ fn reader_view(m: Model, progress: reader.Progress) {
   html.div(
     [
       attribute.class(case m.reading_mode {
-        PageByPage -> "relative w-full h-screen bg-zinc-950 overflow-hidden"
+        PageByPage ->
+          "flex flex-col sm:block relative w-full h-screen bg-zinc-950 overflow-hidden"
         LongStrip -> "relative w-full bg-zinc-950"
       }),
       attribute.id("reader-page"),
@@ -556,13 +566,17 @@ fn reader_view(m: Model, progress: reader.Progress) {
         True -> element.none()
         False -> reader_top_bar(m, progress)
       },
-      case m.zen {
-        True -> element.none()
-        False ->
-          case m.reading_mode {
-            LongStrip -> element.none()
-            PageByPage -> progress_scrubber(m, progress)
-          }
+      // case m.zen {
+      //   True -> element.none()
+      //   False ->
+      //     case m.reading_mode {
+      //       LongStrip -> element.none()
+      //       PageByPage -> progress_scrubber(m, progress)
+      //     }
+      // },
+      case m.reading_mode {
+        LongStrip -> element.none()
+        PageByPage -> progress_scrubber(m, progress)
       },
       case m.show_settings {
         True -> settings_panel(m)
@@ -587,7 +601,7 @@ fn reader_top_bar(m: Model, progress: reader.Progress) {
           )
         PageByPage ->
           attribute.class(
-            "absolute top-0 left-0 right-0 z-30 grid grid-cols-3 items-center px-3 py-2 bg-zinc-950/80 backdrop-blur-md text-white transition-opacity duration-200",
+            "sm:absolute sm:top-0 left-0 right-0 z-30 grid grid-cols-3 items-center px-3 py-2 bg-zinc-950/80 backdrop-blur-md text-white transition-opacity duration-200",
           )
       },
       case m.reading_mode {
@@ -692,7 +706,11 @@ fn page_view(
     "scale(" <> float.to_string(int.to_float(m.prefs.zoom) /. 100.0) <> ")"
 
   html.div(
-    [attribute.class("absolute inset-0 flex justify-center items-center")],
+    [
+      attribute.class(
+        "flex-1 relative sm:absolute sm:inset-0 flex justify-center items-center",
+      ),
+    ],
     [
       html.div(
         [
@@ -917,9 +935,20 @@ fn progress_scrubber(m: Model, progress: reader.Progress) {
             show,
             event.on_click(Previous),
           ]),
-          html.div([attribute.class("flex-1 h-2 rounded-sm overflow-hidden")], [
-            scrub_bar,
-          ]),
+          html.div(
+            [
+              attribute.class(
+                "flex-1 rounded-sm overflow-hidden transition-all duration-300 ease-in-out",
+              ),
+              case m.scrubber_hovered {
+                True -> attribute.class("h-2")
+                False -> attribute.class("h-1")
+              },
+            ],
+            [
+              scrub_bar,
+            ],
+          ),
           html.div(
             [
               attribute.class(

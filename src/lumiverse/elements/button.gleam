@@ -78,11 +78,11 @@ pub fn secondary() -> attribute.Attribute(msg) {
 }
 
 pub fn ghost() -> attribute.Attribute(msg) {
-  attribute.class("text-zinc-400 hover:text-white")
+  attribute.class("text-zinc-400 hover:not-disabled:text-white")
 }
 
 pub fn ghost_inverse() -> attribute.Attribute(msg) {
-  attribute.class("text-white hover:text-zinc-400 ")
+  attribute.class("text-white hover:not-disabled:text-zinc-400")
 }
 
 pub fn danger() -> attribute.Attribute(msg) {

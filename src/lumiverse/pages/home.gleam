@@ -47,7 +47,7 @@ pub fn element() {
   document.set_title("Lumiverse")
   element.element(
     "home-page",
-    [attribute.class("flex min-h-screen w-full flex-col py-8 px-4")],
+    [attribute.class("flex min-h-screen w-full flex-col py-8 px-4 pt-0")],
     [],
   )
 }
@@ -172,74 +172,154 @@ fn view(m: Model) {
     _, _, _ ->
       html.div(
         [
-          attribute.class(
-            "flex min-h-screen flex-col space-y-8 overflow-hidden",
-          ),
+          attribute.class("flex min-h-screen flex-col space-y-10"),
           components.redirect_click(Nothing),
         ],
         [
-          html.div([attribute.class("space-y-4")], [
-            html.h1([attribute.class("font-black text-3xl sm:text-4xl")], [
-              element.text("New On Lumiverse"),
-            ]),
-            html.div([attribute.class("relative overflow-hidden rounded-md")], [
-              html.div(
-                [
-                  attribute.style(
-                    "transform",
-                    "translateX(-"
-                      <> int.to_string(m.carousel_index * 100)
-                      <> "%)",
-                  ),
+          html.div([attribute.class("relative overflow-hidden -mx-4")], [
+            html.div(
+              [
+                attribute.style(
+                  "transform",
+                  "translateX(-"
+                    <> int.to_string(m.carousel_index * 100)
+                    <> "%)",
+                ),
+                attribute.class(
+                  "flex h-[26vh] sm:h-[40vh] flex-shrink-0 bg-zinc-800 transition-transform duration-300 ease-in-out",
+                ),
+              ],
+              case m.carousel {
+                option.None -> [element.none()]
+                option.Some(srs_list) -> carousel(m, srs_list)
+              },
+            ),
+            html.div(
+              [
+                attribute.class(
+                  "absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-20",
+                ),
+              ],
+              case m.carousel {
+                option.None -> []
+                option.Some(srs_list) ->
+                  list.index_map(srs_list.items, fn(_, idx) {
+                    html.div(
+                      [
+                        attribute.class(
+                          "h-1.5 rounded-full transition-all duration-300 "
+                          <> case idx == m.carousel_index {
+                            True -> "w-6 bg-white"
+                            False -> "w-1.5 bg-white/40"
+                          },
+                        ),
+                      ],
+                      [],
+                    )
+                  })
+              },
+            ),
+            html.div(
+              [
+                attribute.class(
+                  "absolute bottom-6 sm:bottom-8 right-4 sm:right-8 flex gap-3 z-20",
+                ),
+              ],
+              [
+                button.icon("ph ph-caret-left text-xl", [
+                  event.on_click(CarouselTick(-1)),
                   attribute.class(
-                    "flex h-[30vh] sm:h-[45vh] flex-shrink-0 rounded-md bg-zinc-800 transition-transform duration-300 ease-in-out",
+                    "rounded-full bg-zinc-950/60 backdrop-blur-sm p-2 hover:bg-zinc-800/70",
                   ),
-                ],
-                case m.carousel {
-                  option.None -> [element.none()]
-                  option.Some(srs_list) -> carousel(m, srs_list)
-                },
-              ),
-              html.div(
-                [attribute.class("absolute bottom-8 right-8 flex gap-4")],
-                [
-                  button.icon("ph ph-caret-left text-2xl", [
-                    event.on_click(CarouselTick(-1)),
-                  ]),
-                  button.icon("ph ph-caret-right text-2xl", [
-                    event.on_click(CarouselTick(1)),
-                  ]),
-                ],
-              ),
-            ]),
+                ]),
+                button.icon("ph ph-caret-right text-xl", [
+                  event.on_click(CarouselTick(1)),
+                  attribute.class(
+                    "rounded-full bg-zinc-950/60 backdrop-blur-sm p-2 hover:bg-zinc-800/70",
+                  ),
+                ]),
+              ],
+            ),
           ]),
           html.div(
-            [attribute.class("space-y-5")],
+            [attribute.class("space-y-8")],
             list.take(
               list.flatten([
                 list.map(m.dashboard_rows, fn(row) {
                   html.div([attribute.class("flex flex-col gap-3")], [
-                    html.h2([attribute.class("font-extrabold text-3xl")], [
-                      element.text(row.title),
-                    ]),
                     html.div(
-                      [attribute.class("flex gap-4 overflow-x-auto")],
+                      [attribute.class("flex items-center justify-between")],
+                      [
+                        html.div([attribute.class("flex items-center gap-3")], [
+                          html.div(
+                            [
+                              attribute.class(
+                                "w-1 self-stretch bg-violet-500 rounded-full",
+                              ),
+                            ],
+                            [],
+                          ),
+                          html.h2([attribute.class("font-extrabold text-2xl")], [
+                            element.text(row.title),
+                          ]),
+                        ]),
+                        // html.a(
+                      //   [
+                      //     attribute.href("/search"),
+                      //     attribute.class(
+                      //       "text-sm text-zinc-500 hover:text-violet-400 transition-colors shrink-0",
+                      //     ),
+                      //   ],
+                      //   [element.text("See all →")],
+                      // ),
+                      ],
+                    ),
+                    html.div(
+                      [
+                        attribute.class(
+                          "flex gap-4 overflow-x-auto snap-x snap-mandatory pb-1",
+                        ),
+                      ],
                       list.map(row.items, series.card),
                     ),
                   ])
                 }),
                 list.repeat(
                   html.div([attribute.class("flex flex-col gap-3")], [
-                    html.h2(
+                    html.div(
+                      [attribute.class("flex items-center justify-between")],
                       [
-                        attribute.class(
-                          "font-extrabold text-3xl animate-pulse bg-zinc-800 h-10 w-52",
-                        ),
+                        html.div([attribute.class("flex items-center gap-3")], [
+                          html.div(
+                            [
+                              attribute.class(
+                                "w-1 h-8 bg-zinc-800 rounded-full animate-pulse",
+                              ),
+                            ],
+                            [],
+                          ),
+                          html.h2(
+                            [
+                              attribute.class(
+                                "font-extrabold text-2xl animate-pulse bg-zinc-800 h-8 w-48",
+                              ),
+                            ],
+                            [],
+                          ),
+                        ]),
+                        // html.div(
+                        //   [attribute.class("w-14 h-4 bg-zinc-800 rounded animate-pulse")],
+                        //   [],
+                        // ),
+                        element.none(),
                       ],
-                      [],
                     ),
                     html.div(
-                      [attribute.class("flex gap-4 overflow-x-auto")],
+                      [
+                        attribute.class(
+                          "flex gap-4 overflow-x-auto snap-x snap-mandatory pb-1",
+                        ),
+                      ],
                       list.repeat(series.card_placeholder(), 5),
                     ),
                   ]),
@@ -256,68 +336,101 @@ fn view(m: Model) {
 
 fn carousel(m: Model, srs_list: stream.SeriesList) {
   list.map(srs_list.items, fn(serie) {
+    let metadata = dict.get(m.metadata, serie.id)
     html.a(
       [
         attribute.href("/series/" <> serie.id |> int.to_string),
         attribute.class("relative flex w-full h-full flex-shrink-0"),
       ],
       [
-        html.div([attribute.class("absolute w-full h-full bg-zinc-800")], [
+        // Full-bleed background image
+        html.div([attribute.class("absolute inset-0 bg-zinc-800")], [
           series.cover_image(serie, [
-            attribute.class("w-screen object-cover inset-0"),
+            attribute.class("w-full h-full object-cover"),
           ]),
         ]),
+        // Mobile: top-anchored cover + text
         html.div(
-          [attribute.class("z-10 flex gap-4 p-4 sm:p-8 bg-zinc-950/75 w-full")],
           [
-            html.div(
-              [
-                attribute.class("flex flex-row gap-4 flex-shrink-0"),
-              ],
-              [
-                series.cover_image(serie, [
-                  attribute.class(
-                    // Increased mobile size to h-48 w-32
-                    "bg-zinc-800 rounded-lg h-48 w-32 sm:h-72 sm:w-50 object-cover flex-shrink-0",
-                  ),
-                ]),
-              ],
+            attribute.class(
+              "sm:hidden absolute inset-0 z-10 flex items-start gap-3 p-4 bg-zinc-950/75 backdrop-blur-sm",
             ),
-            html.div([attribute.class("flex flex-col gap-2 min-w-0 flex-1")], [
+          ],
+          [
+            series.cover_image(serie, [
+              attribute.class(
+                "bg-zinc-800 rounded-lg w-24 h-36 object-cover flex-shrink-0",
+              ),
+            ]),
+            html.div([attribute.class("flex flex-col gap-2 min-w-0 pt-1")], [
               html.h1(
                 [
                   attribute.class(
-                    "font-[Poppins,sans-serif] font-extrabold text-xl sm:text-5xl",
+                    "font-extrabold text-xl line-clamp-3 leading-tight",
                   ),
                 ],
                 [element.text(serie.name)],
               ),
-              case dict.get(m.metadata, serie.id) {
+              case metadata {
                 Error(_) -> element.none()
-                Ok(metadata) ->
+                Ok(meta) ->
+                  html.div([attribute.class("flex flex-wrap gap-1")], [
+                    tag.list(list.take(meta.tags, 4)),
+                  ])
+              },
+              html.span(
+                [
+                  attribute.class(
+                    "inline-flex w-fit items-center px-3 py-1.5 rounded-lg bg-violet-500 text-white text-xs font-semibold",
+                  ),
+                ],
+                [element.text("Read Now →")],
+              ),
+            ]),
+          ],
+        ),
+        // Desktop: side-by-side layout
+        html.div(
+          [
+            attribute.class(
+              "hidden sm:flex z-10 gap-6 p-8 bg-zinc-950/75 backdrop-blur-sm w-full",
+            ),
+          ],
+          [
+            series.cover_image(serie, [
+              attribute.class(
+                "bg-zinc-800 rounded-lg h-72 w-48 object-cover flex-shrink-0 shadow-2xl shadow-zinc-950",
+              ),
+            ]),
+            html.div([attribute.class("flex flex-col gap-2 min-w-0 flex-1")], [
+              html.h1([attribute.class("font-extrabold text-5xl")], [
+                element.text(serie.name),
+              ]),
+              case metadata {
+                Error(_) -> element.none()
+                Ok(meta) ->
                   html.div(
+                    [attribute.class("flex flex-col gap-2 overflow-hidden")],
                     [
-                      attribute.class(
-                        "flex-1 flex flex-col justify-between overflow-hidden",
-                      ),
-                    ],
-                    [
-                      html.div([attribute.class("flex flex-col gap-2")], [
-                        // Added wrap for tags to ensure they fit the narrower text column
-                        html.div([attribute.class("flex flex-wrap gap-1")], [
-                          tag.list(metadata.tags),
-                        ]),
-                        html.p(
-                          [
-                            attribute.class(
-                              "hidden sm:block flex-wrap text-wrap line-clamp-4",
-                            ),
-                          ],
-                          [
-                            element.text(metadata.summary),
-                          ],
-                        ),
+                      html.div([attribute.class("flex flex-wrap gap-1")], [
+                        tag.list(meta.tags),
                       ]),
+                      html.p(
+                        [
+                          attribute.class(
+                            "text-wrap line-clamp-3 text-sm text-zinc-300",
+                          ),
+                        ],
+                        [element.text(meta.summary)],
+                      ),
+                      html.span(
+                        [
+                          attribute.class(
+                            "inline-flex w-fit items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-500 text-white text-sm font-semibold",
+                          ),
+                        ],
+                        [element.text("Read Now →")],
+                      ),
                     ],
                   )
               },

@@ -43,3 +43,4 @@ stylesheets = [
   { href = "https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css" },
   { href = "https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css" },
 ]
+body = "<div id='app' class='w-full min-h-screen bg-zinc-950'></div>"
