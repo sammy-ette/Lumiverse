@@ -68,13 +68,7 @@ fn login_form() {
 }
 
 fn init(_) {
-  #(
-    Model(oidc_config: option.None, form: login_form()),
-    case localstorage.read("server_url") {
-      Error(_) -> effect.none()
-      _ -> api.oidc(OIDCConfig)
-    },
-  )
+  #(Model(oidc_config: option.None, form: login_form()), api.oidc(OIDCConfig))
 }
 
 fn update(m: Model, msg: Msg) {

@@ -1,28 +1,17 @@
 import gleam/dynamic/decode
 import gleam/http/response
-import gleam/uri
-import localstorage
 import router
 import rsvp
 
 pub type Response(a, b) =
   fn(Result(a, rsvp.Error)) -> b
 
-pub fn create_url_with_root(root: String, path: String) -> String {
-  let assert Ok(root_uri) = uri.parse(root)
-  router.direct_with_root(root_uri, path)
-}
-
 pub fn create_url(path: String) -> String {
-  let assert Ok(server_url) = localstorage.read("server_url")
-  server_url |> create_url_with_root(path)
+  router.direct(path)
 }
 
-pub fn health(server: String, s: Response(response.Response(String), b)) {
-  rsvp.get(
-    server |> create_url_with_root("/api/health"),
-    rsvp.expect_ok_response(s),
-  )
+pub fn health(s: Response(response.Response(String), b)) {
+  rsvp.get(create_url("/api/health"), rsvp.expect_ok_response(s))
 }
 
 pub fn expect_ok_response(handler: fn(Result(Nil, rsvp.Error)) -> a) {

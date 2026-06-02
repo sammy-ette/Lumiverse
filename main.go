@@ -35,7 +35,6 @@ var (
 	}
 	kavitaURL    string
 	kavitaAPIKey string
-	serverURL    string
 )
 
 type UserPreference struct {
@@ -262,15 +261,10 @@ func oidcProxy(c fiber.Ctx) error {
 	if cookie := string(c.Request().Header.Peek("Cookie")); cookie != "" {
 		req.Header.Set("Cookie", cookie)
 	}
-	// Set Host to serverURL's host so Kavita builds redirect_uri from the
-	// external hostname, not its internal Docker hostname. ASP.NET Core reads
-	// Request.Host directly from this header without any KnownProxies check,
-	// and Kavita's own event handler already upgrades http:// → https://.
-	if serverURL != "" {
-		if u, err := url.Parse(serverURL); err == nil {
-			req.Host = u.Host
-		}
-	}
+	// Set Host to the external hostname so Kavita builds redirect_uri from it,
+	// not its internal Docker hostname. ASP.NET Core reads Request.Host directly
+	// from this header, and Kavita's own event handler upgrades http:// → https://.
+	req.Host = c.Hostname()
 	resp, err := noRedirectClient.Do(req)
 	if err != nil {
 		return c.Status(fiber.StatusBadGateway).SendString("proxy error")
@@ -292,7 +286,7 @@ func oidcProxy(c fiber.Ctx) error {
 
 	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 		location := resp.Header.Get("Location")
-		if serverURL != "" && kavitaURL != "" && location != "" {
+		if kavitaURL != "" && location != "" {
 			if u, err := url.Parse(location); err == nil {
 				// Rewrite redirect_uri by operating on the raw query string directly.
 				// Using url.Values.Encode() would re-sort and re-encode all parameters,
@@ -301,8 +295,9 @@ func oidcProxy(c fiber.Ctx) error {
 				// Kavita always generates https:// for redirect_uri even when
 				// kavitaURL uses http:// (e.g. internal Docker address). Try
 				// both schemes so the replacement works either way.
+				lumiverseURL := c.Protocol() + "://" + c.Hostname()
 				rawQuery := u.RawQuery
-				encodedServer := url.QueryEscape(serverURL)
+				encodedServer := url.QueryEscape(lumiverseURL)
 				kavitaHost := strings.TrimPrefix(strings.TrimPrefix(kavitaURL, "https://"), "http://")
 				for _, scheme := range []string{"http", "https"} {
 					encoded := url.QueryEscape(scheme + "://" + kavitaHost)
@@ -333,10 +328,6 @@ func serveIndex(c fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).SendString("not found")
 	}
 	html := string(data)
-	// if serverURL != "" {
-	// 	html = strings.Replace(html, "</head>",
-	// 		"<script>window.config = { SERVER_URL: '"+serverURL+"' }</script></head>", 1)
-	// }
 	c.Set("Content-Type", "text/html; charset=utf-8")
 	return c.SendString(html)
 }
@@ -351,7 +342,6 @@ func main() {
 
 	kavitaURL = os.Getenv("KAVITA_URL")
 	kavitaAPIKey = os.Getenv("KAVITA_API_KEY")
-	serverURL = os.Getenv("SERVER_URL")
 
 	if kavitaURL == "" {
 		log.Println("WARNING: KAVITA_URL not set")

@@ -1,4 +1,3 @@
-import formal/form
 import gleam/dynamic/decode
 import gleam/http/response
 import gleam/int
@@ -15,7 +14,6 @@ import lumiverse/api/library
 import lumiverse/api/lumiverse as lumiverse_api
 import lumiverse/api/search as search_api
 import lumiverse/api/series as series_api
-import lumiverse/config
 import lumiverse/elements/button
 import lumiverse/pages/error
 import lumiverse/pages/home
@@ -41,10 +39,7 @@ import rsvp
 type Model {
   Model(
     route: router.Route,
-    server_url: option.Option(String),
     connecting: Bool,
-    server_form: form.Form(String),
-    server_setup_done: option.Option(Bool),
     username: option.Option(String),
     toasts: List(toasts.Toast),
     next_toast_id: Int,
@@ -56,7 +51,6 @@ type Model {
 
 pub type Msg {
   ChangeRoute(router.Route)
-  ConnectToServer(Result(String, form.Form(String)))
   ServerHealth(Result(response.Response(String), rsvp.Error))
   ServerSetupDone(Result(Bool, rsvp.Error))
   OIDCAuthenticated(Result(Bool, rsvp.Error))
@@ -88,18 +82,12 @@ pub fn main() {
         }
       }
   }
-  case localstorage.read("server_url") {
-    Ok(_) -> {
-      let assert Ok(_) = home.register()
-      let assert Ok(_) = series.register()
-      let assert Ok(_) = reader.register()
-      let assert Ok(_) = settings.register()
-      let assert Ok(_) = preferences.register()
-      let assert Ok(_) = search.register()
-      Nil
-    }
-    Error(_) -> Nil
-  }
+  let assert Ok(_) = home.register()
+  let assert Ok(_) = series.register()
+  let assert Ok(_) = reader.register()
+  let assert Ok(_) = settings.register()
+  let assert Ok(_) = preferences.register()
+  let assert Ok(_) = search.register()
   let assert Ok(_) = lustre.start(app, "#app", Nil)
 }
 
@@ -122,24 +110,10 @@ fn init(_) {
     _ -> option.None
   }
 
-  let server_url = case config.get("SERVER_URL") {
-    "" -> localstorage.read("server_url") |> option.from_result
-    server_url -> option.Some(server_url)
-  }
-  let server_form =
-    form.new({
-      use server_url <- form.field("server_url", form.parse_url)
-
-      form.success(server_url |> uri.to_string)
-    })
-
   #(
     Model(
       route:,
-      server_url:,
-      connecting: False,
-      server_form:,
-      server_setup_done: option.None,
+      connecting: True,
       username:,
       toasts: [],
       next_toast_id: 0,
@@ -149,14 +123,10 @@ fn init(_) {
     ),
     effect.batch([
       modem.init(fn(url) { router.uri_to_route(url) |> ChangeRoute }),
-      case server_url {
-        option.Some(server_url) -> api.health(server_url, ServerHealth)
+      api.health(ServerHealth),
+      case username {
+        option.Some(_) -> lumiverse_api.get_preferences(GotPreferences)
         option.None -> effect.none()
-      },
-      case server_url, username {
-        option.Some(_), option.Some(_) ->
-          lumiverse_api.get_preferences(GotPreferences)
-        _, _ -> effect.none()
       },
     ]),
   )
@@ -179,23 +149,16 @@ fn update(m: Model, msg: Msg) {
         }
         _ -> #(Model(..m, route:, search_preview: option.None), effect.none())
       }
-    ConnectToServer(Ok(server_url)) -> #(
-      Model(..m, connecting: True, server_url: option.Some(server_url)),
-      api.health(server_url, ServerHealth),
+    ServerHealth(Ok(_)) -> #(
+      Model(..m, connecting: False),
+      api.setup_done(ServerSetupDone),
     )
-    ConnectToServer(Error(server_form)) -> #(
-      Model(..m, server_form:),
-      effect.none(),
+    ServerHealth(Error(_)) -> #(
+      Model(..m, connecting: False),
+      effect.from(fn(dispatch) {
+        dispatch(ShowToast("Cannot connect to server", toasts.Err))
+      }),
     )
-    ServerHealth(Ok(_)) -> {
-      let assert option.Some(server_url) = m.server_url
-      localstorage.write("server_url", server_url)
-      #(
-        Model(..m, connecting: False, server_url: option.Some(server_url)),
-        api.setup_done(ServerSetupDone),
-      )
-    }
-    ServerHealth(Error(_)) -> #(Model(..m, connecting: True), effect.none())
     ServerSetupDone(Ok(done)) -> {
       let eff = case done {
         True -> {
@@ -311,9 +274,26 @@ fn view(m: Model) {
     [attribute.class("bg-zinc-950 text-white font-[Poppins,sans-serif]")],
     [
       toasts.toast_overlay(m.toasts, DismissToast),
-      case m.server_url, m.connecting {
-        option.None, _ | option.Some(_), True -> server_url_view(m)
-        option.Some(_), False ->
+      case m.connecting {
+        True ->
+          html.div(
+            [
+              attribute.class(
+                "w-screen h-screen flex items-center justify-center",
+              ),
+            ],
+            [
+              html.i(
+                [
+                  attribute.class(
+                    "ph ph-circle-notch animate-spin text-4xl text-zinc-400",
+                  ),
+                ],
+                [],
+              ),
+            ],
+          )
+        False ->
           case m.route {
             router.Login -> login.element()
             router.Setup -> setup.element()
@@ -644,89 +624,6 @@ fn view(m: Model) {
               }
           }
       },
-    ],
-  )
-}
-
-fn server_url_view(m: Model) {
-  let submitted = fn(fields) {
-    m.server_form |> form.add_values(fields) |> form.run |> ConnectToServer
-  }
-
-  html.div(
-    [
-      attribute.class("w-screen h-screen flex items-center justify-center"),
-    ],
-    [
-      html.div(
-        [
-          attribute.class(
-            "border-t-5 border-sky-500 rounded-md bg-zinc-900 p-4 space-y-4",
-          ),
-        ],
-        [
-          html.form(
-            [
-              attribute.class("space-y-4"),
-              event.on_submit(submitted),
-            ],
-            [
-              html.div([attribute.class("flex flex-col gap-1")], [
-                html.label([attribute.class("text-sm text-zinc-300")], [
-                  element.text("Kavita URL:"),
-                ]),
-                html.input([
-                  attribute.class(
-                    "bg-zinc-700 rounded-md p-1 text-zinc-200 outline-none border-b-5 border-zinc-700 focus:border-sky-600",
-                  ),
-                  attribute.name("server_url"),
-                ]),
-                html.small(
-                  [attribute.class("text-zinc-400")],
-                  list.map(
-                    form.field_error_messages(m.server_form, "server_url"),
-                    element.text,
-                  ),
-                ),
-              ]),
-              html.button(
-                [
-                  attribute.class(
-                    "relative flex justify-center items-center rounded-md px-4 py-2 font-bold transition outline-none",
-                  ),
-                  case m.connecting {
-                    False -> attribute.class("bg-sky-500")
-                    True -> attribute.class("bg-sky-700")
-                  },
-                ],
-                [
-                  html.span(
-                    [
-                      case m.connecting {
-                        False -> attribute.none()
-                        True -> attribute.class("invisible")
-                      },
-                    ],
-                    [element.text("Connect")],
-                  ),
-                  html.div(
-                    [
-                      attribute.class("absolute flex w-fit animate-spin"),
-                      case m.connecting {
-                        False -> attribute.class("invisible")
-                        True -> attribute.none()
-                      },
-                    ],
-                    [
-                      html.i([attribute.class("ph ph-circle-notch")], []),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
     ],
   )
 }
