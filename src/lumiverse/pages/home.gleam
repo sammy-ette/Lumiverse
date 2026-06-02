@@ -375,7 +375,10 @@ fn carousel(m: Model, srs_list: stream.SeriesList) {
                 Error(_) -> element.none()
                 Ok(meta) ->
                   html.div([attribute.class("flex flex-wrap gap-1")], [
-                    tag.list(list.take(meta.tags, 4)),
+                    tag.list(list.take(
+                      meta.tags |> list.append(meta.genres) |> tag.sort,
+                      4,
+                    )),
                   ])
               },
               html.span(
@@ -413,7 +416,7 @@ fn carousel(m: Model, srs_list: stream.SeriesList) {
                     [attribute.class("flex flex-col gap-2 overflow-hidden")],
                     [
                       html.div([attribute.class("flex flex-wrap gap-1")], [
-                        tag.list(meta.tags),
+                        tag.list(meta.tags |> list.append(meta.genres)),
                       ]),
                       html.p(
                         [
