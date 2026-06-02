@@ -261,10 +261,7 @@ fn update(m: Model, msg: Msg) {
           False -> series_api.Teen
         }
         |> series_api.age_rating_to_int
-      #(
-        Model(..m, max_age_rating: rating),
-        lumiverse_api.set_preferences(rating, GotPreferences),
-      )
+      #(m, lumiverse_api.set_preferences(rating, GotPreferences))
     }
   }
 }
