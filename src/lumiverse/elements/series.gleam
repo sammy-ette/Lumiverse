@@ -9,19 +9,32 @@ import lustre/element/html
 pub fn card(srs: series.SeriesMinimal) {
   let user = account.get()
   html.a(
-    [attribute.href("/series/" <> int.to_string(srs.id)), attribute.class("group")],
+    [
+      attribute.href("/series/" <> int.to_string(srs.id)),
+      attribute.class("group"),
+    ],
     [
       html.div([attribute.class("snap-start sm:w-48 w-24 space-y-2")], [
         html.img([
           attribute.attribute("loading", "lazy"),
-          attribute.src(image_url.series_cover(srs.id, user |> account.image_key)),
+          attribute.src(image_url.series_cover(
+            srs.id,
+            user |> account.image_key,
+          )),
           attribute.class(
-            "rounded bg-zinc-800 w-full object-cover sm:h-72 h-44 group-hover:scale-[1.02] group-hover:brightness-105 transition-all duration-200",
+            "rounded-lg bg-zinc-800 w-full object-cover sm:h-72 h-44 group-hover:brightness-75 transition-all duration-200",
           ),
         ]),
-        html.div([attribute.class("font-medium text-sm truncate")], [
+        html.div(
+          [
+            attribute.class(
+              "font-[Poppins,sans-serif] font-semibold text-zinc-200 text-sm truncate",
+            ),
+          ],
+          [
           element.text(srs.name),
-        ]),
+          ],
+        ),
       ]),
     ],
   )

@@ -10,7 +10,7 @@
 ## New Pages
 - [ ] Collections & Reading Lists — browse and manage Kavita collections
 - [ ] User statistics — pages read, series completed, reading history
-- [ ] User management (admin) — create, edit, delete users
+- [x] User management (admin) — create, edit, delete users
 
 ## Reader
 - [ ] Keyboard shortcut help overlay — discoverable list of all shortcuts
@@ -31,7 +31,7 @@
 - [ ] Related series — show sequels, prequels, spin-offs (Kavita has relationship data)
 - [ ] Custom cover upload — let admins upload cover art for a series
 - [ ] Tag / genre browser — clickable tags on series page navigate to a filtered list
-- [ ] Reading time estimate — "~3 hrs left in this volume" based on page count and pace
+- [x] Reading time estimate — "~3 hrs left in this volume" based on page count and pace
 
 ## Reader (more)
 - [ ] Chapter list panel — jump to any chapter without leaving the reader
