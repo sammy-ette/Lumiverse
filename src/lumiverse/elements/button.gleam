@@ -60,7 +60,7 @@ pub fn icon_label(
 ) -> element.Element(msg) {
   render(
     [
-      html.i([attribute.class("leading-none " <> icon_class)], []),
+      html.i([attribute.class("leading-none text-2xl " <> icon_class)], []),
       element.text(label),
     ],
     [attribute.class("inline-flex items-center gap-1.5"), ..attrs],
@@ -74,7 +74,11 @@ pub fn primary() -> attribute.Attribute(msg) {
 }
 
 pub fn secondary() -> attribute.Attribute(msg) {
-  attribute.class("px-4 py-2 bg-zinc-800 hover:not-disabled:bg-zinc-700")
+  attribute.class("p-2.5 bg-zinc-800 hover:not-disabled:bg-zinc-700")
+}
+
+pub fn tertiary() -> attribute.Attribute(msg) {
+  attribute.class("p-2 border border-zinc-700 hover:not-disabled:bg-zinc-700")
 }
 
 pub fn ghost() -> attribute.Attribute(msg) {

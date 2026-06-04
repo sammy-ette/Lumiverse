@@ -564,7 +564,7 @@ fn reader_view(m: Model, progress: reader.Progress) {
       },
       case m.zen {
         True -> element.none()
-        False -> reader_top_bar(m, progress)
+        False -> reader_top_bar(m)
       },
       // case m.zen {
       //   True -> element.none()
@@ -590,8 +590,7 @@ fn reader_view(m: Model, progress: reader.Progress) {
   )
 }
 
-fn reader_top_bar(m: Model, progress: reader.Progress) {
-  let _ = progress
+fn reader_top_bar(m: Model) {
   html.div(
     [
       case m.reading_mode {
@@ -601,17 +600,17 @@ fn reader_top_bar(m: Model, progress: reader.Progress) {
           )
         PageByPage ->
           attribute.class(
-            "sm:absolute sm:top-0 left-0 right-0 z-30 grid grid-cols-3 items-center px-3 py-2 bg-zinc-950/80 backdrop-blur-md text-white transition-opacity duration-200",
+            "z-30 grid grid-cols-3 items-center px-3 py-2 bg-zinc-950/80 backdrop-blur-md text-white transition-opacity duration-200",
           )
       },
-      case m.reading_mode {
-        LongStrip -> attribute.none()
-        PageByPage ->
-          case m.header_hovered {
-            True -> attribute.none()
-            False -> attribute.class("sm:opacity-0")
-          }
-      },
+      // case m.reading_mode {
+      //   LongStrip -> attribute.none()
+      //   PageByPage ->
+      //     case m.header_hovered {
+      //       True -> attribute.none()
+      //       False -> attribute.class("sm:opacity-0")
+      //     }
+      // },
       event.on("mouseover", decode.success(HeaderHover(True))),
       event.on("mouseleave", decode.success(HeaderHover(False))),
     ],
@@ -668,16 +667,20 @@ fn reader_top_bar(m: Model, progress: reader.Progress) {
           ]
         },
       ),
-      html.div([attribute.class("flex items-center justify-end gap-1")], [
-        button.icon("ph ph-gear text-xl", [
-          button.ghost(),
-          event.on_click(ToggleSettings),
-        ]),
-        button.icon("ph ph-eye text-xl", [
-          button.ghost(),
-          event.on_click(ToggleZen),
-        ]),
-      ]),
+      html.div(
+        [attribute.class("flex items-center justify-end gap-1 text-3xl")],
+        [
+          button.icon("ph ph-gear", [
+            button.ghost(),
+            event.on_click(ToggleSettings),
+          ]),
+          button.icon("ph ph-flower-lotus", [
+            button.ghost(),
+            event.on_click(ToggleZen),
+            attribute.title("Toggle Zen Mode (Focused & Fullscreen Reading)"),
+          ]),
+        ],
+      ),
     ],
   )
 }

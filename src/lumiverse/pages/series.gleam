@@ -14,7 +14,9 @@ import lumiverse/api/image_url
 import lumiverse/api/reader
 import lumiverse/api/series
 import lumiverse/elements/button
+import lumiverse/elements/series as series_element
 import lumiverse/elements/tag
+import lumiverse/pages/error
 import lustre
 import lustre/attribute
 import lustre/component
@@ -32,12 +34,14 @@ type Model {
     id: Int,
     series: option.Option(Result(series.Series, rsvp.Error)),
     details: option.Option(series.Details),
+    time_left: option.Option(series.Time),
     admin: Bool,
     show_editor: Bool,
     edit_form: form.Form(SeriesEdit),
     new_tag_input: String,
     sort_ascending: Bool,
     active_tab: Tab,
+    loading_reader: Bool,
   )
 }
 
@@ -63,6 +67,7 @@ type Msg {
   DetailsRetrieved(Result(series.Details, rsvp.Error))
   ContinuePointRetrieved(Result(reader.ContinuePoint, rsvp.Error))
   TagsRetrieved(String, Result(List(series.Tag), rsvp.Error))
+  TimeLeftRetrieved(Result(series.Time, rsvp.Error))
   MetadataUpdated(Result(Nil, rsvp.Error))
   EditSubmitted(Result(SeriesEdit, form.Form(SeriesEdit)))
   Read
@@ -106,13 +111,15 @@ fn init(_) {
     Model(
       id: 0,
       series: option.None,
+      details: option.None,
+      time_left: option.None,
       admin: False,
       show_editor: False,
       edit_form: editor_form(),
-      details: option.None,
       new_tag_input: "",
       sort_ascending: True,
       active_tab: StorylineTab,
+      loading_reader: False,
     ),
     effect.none(),
   )
@@ -121,19 +128,17 @@ fn init(_) {
 fn update(m: Model, msg: Msg) {
   case msg {
     Admin(admin) -> #(Model(..m, admin:), effect.none())
-    SeriesID(id) -> #(
-      Model(..m, id:),
-      effect.batch([
-        series.get(id, SeriesRetrieved),
-        series.details(id, DetailsRetrieved),
-      ]),
-    )
+    SeriesID(id) -> #(Model(..m, id:), series.get(id, SeriesRetrieved))
     ShowEditor(show_editor) -> #(Model(..m, show_editor:), effect.none())
     SeriesRetrieved(Ok(srs)) -> {
       document.set_title(srs.name <> " | Lumiverse")
       #(
         Model(..m, series: option.Some(Ok(srs))),
-        series.metadata(srs.id, MetadataRetrieved),
+        effect.batch([
+          series.metadata(srs.id, MetadataRetrieved),
+          series.details(srs.id, DetailsRetrieved),
+          series.time_left(srs.id, TimeLeftRetrieved),
+        ]),
       )
     }
     SeriesRetrieved(Error(e)) -> #(
@@ -158,17 +163,25 @@ fn update(m: Model, msg: Msg) {
       effect.none(),
     )
     DetailsRetrieved(Error(_)) -> #(m, effect.none())
+    TimeLeftRetrieved(Ok(t)) -> #(
+      Model(..m, time_left: option.Some(t)),
+      effect.none(),
+    )
+    TimeLeftRetrieved(Error(_)) -> #(m, effect.none())
     Read -> {
       case m.series {
         option.Some(Ok(srs)) -> {
-          #(m, reader.continue_point(srs.id, ContinuePointRetrieved))
+          #(
+            Model(..m, loading_reader: True),
+            reader.continue_point(srs.id, ContinuePointRetrieved),
+          )
         }
         _ -> #(m, effect.none())
       }
     }
     ContinuePointRetrieved(Ok(cont_point)) -> {
       #(
-        m,
+        Model(..m, loading_reader: False),
         modem.push(
           "/read/" <> cont_point.id |> int.to_string,
           option.None,
@@ -293,14 +306,15 @@ fn update(m: Model, msg: Msg) {
 }
 
 fn view(m: Model) {
-  case m.series, m.details {
-    option.Some(Ok(series)), option.Some(details) -> {
-      case series.metadata {
-        option.None -> element.none()
-        option.Some(metadata) -> display(m, series, metadata, details)
+  case m.series {
+    option.None -> element.none()
+    option.Some(Error(_)) -> error.page(error.NotFound)
+    option.Some(Ok(series)) ->
+      case series.metadata, m.details {
+        option.Some(metadata), option.Some(details) ->
+          display(m, series, metadata, details)
+        _, _ -> element.none()
       }
-    }
-    _, _ -> element.none()
   }
 }
 
@@ -419,16 +433,25 @@ fn display(
                 },
                 case metadata.age_rating {
                   series.NotApplicable | series.UnknownRating -> element.none()
-                  rating ->
-                    html.span(
-                      [
-                        attribute.class(
-                          "text-xs font-bold px-1.5 py-0.5 rounded w-fit "
-                          <> age_rating_color(rating),
-                        ),
-                      ],
-                      [element.text(age_rating_label(rating))],
-                    )
+                  rating -> series_element.age_rating(rating, [])
+                },
+                case m.time_left {
+                  option.None -> element.none()
+                  option.Some(t) ->
+                    html.span([attribute.class("text-sm text-zinc-400")], [
+                      element.text(case t.average_hours >. 0.0 {
+                        True ->
+                          "~"
+                          <> {
+                            t.average_hours
+                            |> float.ceiling
+                            |> float.truncate
+                            |> int.to_string
+                          }
+                          <> " hrs left"
+                        False -> int.to_string(t.page_count) <> " pages left"
+                      }),
+                    ])
                 },
               ]),
               case srs.pages {
@@ -1034,32 +1057,6 @@ fn cover_card(
       ]),
     ],
   )
-}
-
-fn age_rating_color(rating: series.AgeRating) -> String {
-  case rating {
-    series.RatingPending
-    | series.EarlyChildhood
-    | series.Everyone
-    | series.Everyone10Plus -> "bg-emerald-500/20 text-emerald-400"
-    series.Teen -> "bg-amber-500/20 text-amber-400"
-    series.Mature17Plus -> "bg-orange-500/20 text-orange-400"
-    series.AdultsOnly -> "bg-red-500/20 text-red-400"
-    _ -> "bg-zinc-700 text-zinc-400"
-  }
-}
-
-fn age_rating_label(rating: series.AgeRating) -> String {
-  case rating {
-    series.RatingPending -> "Rating Pending"
-    series.EarlyChildhood -> "Early Childhood"
-    series.Everyone -> "Everyone"
-    series.Everyone10Plus -> "Everyone 10+"
-    series.Teen -> "Teen"
-    series.Mature17Plus -> "Mature 17+"
-    series.AdultsOnly -> "Adults Only"
-    _ -> "Unknown"
-  }
 }
 
 fn label(for: String, title: String) {

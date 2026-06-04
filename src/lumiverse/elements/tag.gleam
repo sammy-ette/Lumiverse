@@ -1,4 +1,5 @@
 import gleam/bool
+import gleam/int
 import gleam/list
 import gleam/order
 import gleam/string
@@ -48,7 +49,37 @@ pub const lgbtq = [
   "rainbow",
 ]
 
-pub const tag_appearance = "font-[Poppins,sans-serif] text-xs font-medium hover:brightness-110 cursor-pointer"
+pub const tag_appearance = "font-[Poppins,sans-serif] text-xs font-medium cursor-pointer"
+
+pub type Classification {
+  StaffPick
+  Special
+  Explicit
+  Beware
+  Lgbtq
+  Normal
+}
+
+pub fn classify(title: String) -> Classification {
+  let t = string.lowercase(title)
+  use <- bool.guard(t == "staff pick", StaffPick)
+  use <- bool.guard(tag_in_list(t, special), Special)
+  use <- bool.guard(tag_in_list(t, explicit), Explicit)
+  use <- bool.guard(tag_in_list(t, beware), Beware)
+  use <- bool.guard(tag_in_list(t, lgbtq), Lgbtq)
+  Normal
+}
+
+fn classification_priority(c: Classification) -> Int {
+  case c {
+    StaffPick -> 0
+    Special -> 1
+    Explicit -> 2
+    Beware -> 3
+    Lgbtq -> 4
+    Normal -> 5
+  }
+}
 
 pub fn list(tags: List(series.Tag)) {
   list_with_function(tags, fn(_t) { [] })
@@ -65,8 +96,8 @@ pub fn list_with_function(
 }
 
 pub fn single(tag: series.Tag, attrs: List(attribute.Attribute(a))) {
-  case tag.title |> string.lowercase {
-    "staff pick" ->
+  case classify(tag.title) {
+    StaffPick ->
       element(
         [attribute.class("capitalize bg-violet-500 text-white gap-1"), ..attrs],
         [
@@ -103,18 +134,68 @@ pub fn element(
   )
 }
 
-pub fn color(tag: String) {
-  {
-    use <- bool.guard(tag_in_list(tag, special), "bg-sky-950/60 text-sky-400")
-    use <- bool.guard(tag_in_list(tag, explicit), "bg-red-950/60 text-red-400")
-    use <- bool.guard(tag_in_list(tag, beware), "bg-pink-950/60 text-pink-400")
-    use <- bool.guard(
-      tag_in_list(tag, lgbtq),
-      "[background:linear-gradient(to_right,#ef4444cc,#f97316cc,#eab308cc,#22c55ecc,#3b82f6cc,#8b5cf6cc)] text-white",
-    )
-    "bg-zinc-800 text-zinc-400"
+pub fn included_style(title: String) -> attribute.Attribute(a) {
+  case classify(title) {
+    Normal -> attribute.class("bg-zinc-600 text-white")
+    StaffPick -> attribute.class("bg-violet-500 text-white brightness-110")
+    Special -> attribute.class("bg-sky-800 text-sky-100 brightness-110")
+    Explicit -> attribute.class("bg-red-800 text-red-100 brightness-110")
+    Beware -> attribute.class("bg-pink-800 text-pink-100 brightness-110")
+    Lgbtq ->
+      attribute.class(
+        "[background:linear-gradient(to_right,#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#8b5cf6)] text-white brightness-110",
+      )
   }
-  |> attribute.class
+}
+
+pub fn excluded_style(title: String) -> attribute.Attribute(a) {
+  case classify(title) {
+    Normal -> attribute.class("bg-transparent text-zinc-500")
+    StaffPick -> attribute.class("bg-transparent text-violet-400/70")
+    Special -> attribute.class("bg-transparent text-sky-400/70")
+    Explicit -> attribute.class("bg-transparent text-red-400/70")
+    Beware -> attribute.class("bg-transparent text-pink-400/70")
+    Lgbtq ->
+      attribute.class(
+        "text-white/60 [background:linear-gradient(#09090b,#09090b)_padding-box,linear-gradient(to_right,#ef4444aa,#f97316aa,#eab308aa,#22c55eaa,#3b82f6aa,#8b5cf6aa)_border-box]",
+      )
+  }
+}
+
+pub fn excluded_border(title: String) -> attribute.Attribute(a) {
+  case classify(title) {
+    Normal -> attribute.class("border-zinc-600")
+    StaffPick -> attribute.class("border-violet-500/60")
+    Special -> attribute.class("border-sky-600/60")
+    Explicit -> attribute.class("border-red-600/60")
+    Beware -> attribute.class("border-pink-600/60")
+    Lgbtq -> attribute.class("border-transparent")
+  }
+}
+
+pub fn dot_color(title: String) -> String {
+  case classify(title) {
+    StaffPick -> "text-violet-400"
+    Special -> "text-sky-400"
+    Explicit -> "text-red-400"
+    Beware -> "text-pink-400"
+    Lgbtq -> "text-purple-400"
+    Normal -> ""
+  }
+}
+
+pub fn color(title: String) -> attribute.Attribute(a) {
+  case classify(title) {
+    StaffPick -> attribute.class("bg-violet-500 text-white")
+    Special -> attribute.class("bg-sky-950/60 text-sky-400")
+    Explicit -> attribute.class("bg-red-950/60 text-red-400")
+    Beware -> attribute.class("bg-pink-950/60 text-pink-400")
+    Lgbtq ->
+      attribute.class(
+        "[background:linear-gradient(to_right,#ef4444cc,#f97316cc,#eab308cc,#22c55ecc,#3b82f6cc,#8b5cf6cc)] text-white",
+      )
+    Normal -> attribute.class("bg-zinc-800 text-zinc-400")
+  }
 }
 
 fn tag_in_list(tag: String, lst: List(String)) -> Bool {
@@ -128,39 +209,17 @@ fn tag_in_list(tag: String, lst: List(String)) -> Bool {
 }
 
 pub fn sort(tags: List(series.Tag)) {
-  list.sort(tags, tag_compare)
+  list.sort(tags, compare)
 }
 
-fn tag_compare(a: series.Tag, b: series.Tag) -> order.Order {
-  case compare_in_list(a.title, b.title, ["staff pick"]) {
-    order.Eq ->
-      case compare_in_list(a.title, b.title, special) {
-        order.Eq ->
-          case compare_in_list(a.title, b.title, explicit) {
-            order.Eq ->
-              case compare_in_list(a.title, b.title, beware) {
-                order.Eq ->
-                  case compare_in_list(a.title, b.title, lgbtq) {
-                    order.Eq -> string.compare(a.title, b.title)
-                    res -> res
-                  }
-                res -> res
-              }
-            res -> res
-          }
-        res -> res
-      }
+pub fn compare(a: series.Tag, b: series.Tag) -> order.Order {
+  case
+    int.compare(
+      classification_priority(classify(a.title)),
+      classification_priority(classify(b.title)),
+    )
+  {
+    order.Eq -> string.compare(a.title, b.title)
     res -> res
-  }
-}
-
-fn compare_in_list(a: String, b: String, lst: List(String)) -> order.Order {
-  let a_in_list = tag_in_list(a, lst)
-  let b_in_list = tag_in_list(b, lst)
-
-  case a_in_list, b_in_list {
-    True, False -> order.Lt
-    False, True -> order.Gt
-    _, _ -> order.Eq
   }
 }

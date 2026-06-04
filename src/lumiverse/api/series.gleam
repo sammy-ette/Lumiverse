@@ -6,6 +6,7 @@ import gleam/option
 import gleam/result
 import lumiverse/api/api
 import lumiverse/api/fetch
+import lumiverse/api/filter
 import plinth/javascript/date
 
 pub type Series {
@@ -543,8 +544,66 @@ fn time_decoder() -> decode.Decoder(Time) {
 
 pub fn time_left(series_id: Int, resp: api.Response(Time, a)) {
   fetch.get(
-    "/api/series/time-left?seriesId=" <> int.to_string(series_id),
+    "/api/reader/time-left?seriesId=" <> int.to_string(series_id),
     time_decoder(),
     resp,
   )
+}
+
+pub fn genres(resp: api.Response(List(Tag), a)) {
+  fetch.get("/api/metadata/genres", decode.list(tag_decoder()), resp)
+}
+
+pub fn publication_to_string(p: Publication) -> String {
+  case p {
+    Ongoing -> "0"
+    Hiatus -> "1"
+    Completed -> "2"
+    Cancelled -> "3"
+    Ended -> "4"
+    Unknown | Invalid -> "5"
+  }
+}
+
+pub fn all(
+  sort_field: filter.SortField,
+  ascending: Bool,
+  statements: List(filter.Statement),
+  combination: filter.Combination,
+  page: Int,
+  resp: api.Response(List(SeriesMinimal), a),
+) {
+  fetch.post(
+    "/api/series/all-v2?pageNumber="
+      <> int.to_string(page)
+      <> "&pageSize=30",
+    filter.encode_smart_filter(filter.SmartFilter(
+      id: 0,
+      name: "",
+      statements:,
+      combination:,
+      sort_options: filter.SortOptions(sort_field:, ascending:),
+      limit_to: 0,
+      for_dashboard: False,
+      order: 0,
+      entity_type: filter.Series,
+    )),
+    decode.list(minimal_decoder()),
+    resp,
+  )
+}
+
+pub fn publication_label(p: Publication) -> String {
+  case p {
+    Ongoing -> "Ongoing"
+    Hiatus -> "Hiatus"
+    Completed -> "Completed"
+    Cancelled -> "Cancelled"
+    Ended -> "Ended"
+    Unknown | Invalid -> "Unknown"
+  }
+}
+
+pub fn all_publications() -> List(Publication) {
+  [Ongoing, Completed, Hiatus, Cancelled, Ended]
 }

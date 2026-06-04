@@ -15,6 +15,7 @@ import lumiverse/api/lumiverse as lumiverse_api
 import lumiverse/api/search as search_api
 import lumiverse/api/series as series_api
 import lumiverse/elements/button
+import lumiverse/pages/all
 import lumiverse/pages/error
 import lumiverse/pages/home
 import lumiverse/pages/login
@@ -83,6 +84,7 @@ pub fn main() {
       }
   }
   let assert Ok(_) = home.register()
+  let assert Ok(_) = all.register()
   let assert Ok(_) = series.register()
   let assert Ok(_) = reader.register()
   let assert Ok(_) = settings.register()
@@ -301,7 +303,10 @@ fn view(m: Model) {
                   let acc = account.get()
                   html.div(
                     [
-                      attribute.class("w-full min-h-screen flex flex-col"),
+                      attribute.class(case route {
+                        router.All -> "w-full h-dvh flex flex-col"
+                        _ -> "w-full min-h-screen flex flex-col"
+                      }),
                     ],
                     [
                       html.nav(
@@ -323,7 +328,7 @@ fn view(m: Model) {
                             ],
                             [
                               html.div(
-                                [attribute.class("flex items-center gap-2")],
+                                [attribute.class("flex items-center gap-4")],
                                 [
                                   html.a([attribute.href("/")], [
                                     html.span(
@@ -337,10 +342,22 @@ fn view(m: Model) {
                                       ],
                                     ),
                                   ]),
+                                  html.a(
+                                    [
+                                      attribute.href("/all"),
+                                    ],
+                                    [
+                                      button.icon_label(
+                                        "ph ph-books text-lg",
+                                        "Browse",
+                                        [button.secondary()],
+                                      ),
+                                    ],
+                                  ),
                                   html.div(
                                     [
                                       attribute.class(
-                                        "relative hidden md:flex items-center group ml-4",
+                                        "relative hidden md:flex items-center group",
                                       ),
                                     ],
                                     [
@@ -597,6 +614,7 @@ fn view(m: Model) {
                       ),
                       case route {
                         router.Home -> home.element()
+                        router.All -> all.element([])
                         router.Preferences -> preferences.element()
                         router.Settings ->
                           settings.element([toasts.on_toast(ShowToast)])
