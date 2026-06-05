@@ -41,8 +41,6 @@ type Model {
     included_tags: List(series_api.Tag),
     excluded_tags: List(series_api.Tag),
     show_sort_panel: Bool,
-    show_status_panel: Bool,
-    show_tag_panel: Bool,
     tag_search: String,
     page: Int,
     has_more: Bool,
@@ -61,11 +59,7 @@ type Msg {
   ToggleGenre(series_api.Tag)
   ToggleTag(series_api.Tag)
   ToggleSortPanel
-  ToggleStatusPanel
-  ToggleTagPanel
   TagSearchChanged(String)
-  ClearFilters
-  RemoveStatus(series_api.Publication)
   GoToPage(Int)
   ToggleSidebar
   ResetFilters
@@ -103,8 +97,6 @@ fn init(_) {
       included_tags: [],
       excluded_tags: [],
       show_sort_panel: False,
-      show_status_panel: False,
-      show_tag_panel: False,
       tag_search: "",
       page: 1,
       has_more: False,
@@ -271,55 +263,11 @@ fn update(m: Model, msg: Msg) {
       )
 
     ToggleSortPanel -> #(
-      Model(
-        ..m,
-        show_sort_panel: !m.show_sort_panel,
-        show_status_panel: False,
-        show_tag_panel: False,
-      ),
-      effect.none(),
-    )
-    ToggleStatusPanel -> #(
-      Model(
-        ..m,
-        show_status_panel: !m.show_status_panel,
-        show_sort_panel: False,
-        show_tag_panel: False,
-      ),
-      effect.none(),
-    )
-    ToggleTagPanel -> #(
-      Model(
-        ..m,
-        show_tag_panel: !m.show_tag_panel,
-        show_sort_panel: False,
-        show_status_panel: False,
-      ),
+      Model(..m, show_sort_panel: !m.show_sort_panel),
       effect.none(),
     )
 
     TagSearchChanged(q) -> #(Model(..m, tag_search: q), effect.none())
-
-    RemoveStatus(s) ->
-      refetch_from_page_1(
-        Model(
-          ..m,
-          active_statuses: list.filter(m.active_statuses, fn(x) { x != s }),
-        ),
-      )
-
-    ClearFilters ->
-      refetch_from_page_1(
-        Model(
-          ..m,
-          active_statuses: [],
-          active_ratings: [],
-          included_genres: [],
-          excluded_genres: [],
-          included_tags: [],
-          excluded_tags: [],
-        ),
-      )
 
     GoToPage(p) -> refetch(Model(..m, page: p))
 
@@ -385,7 +333,7 @@ fn control_bar(m: Model) {
     ],
     [
       html.div([attribute.class("flex items-center gap-3")], [
-        button.icon("ph ph-funnel", [
+        button.icon("ph ph-[funnel]", "Toggle filters", [
           event.on_click(ToggleSidebar),
           button.tertiary(),
           attribute.class("text-zinc-300"),
@@ -415,7 +363,7 @@ fn control_bar(m: Model) {
           m.show_sort_panel,
           ToggleSortPanel,
           button.icon_label(
-            "ph ph-sort-ascending",
+            "ph ph-[sort-ascending]",
             "Sort: "
               <> case m.sort_field {
               filter.SortName -> "Name"
@@ -432,31 +380,31 @@ fn control_bar(m: Model) {
               "Name",
               option.Some("A → Z"),
               SetSort(filter.SortName),
-              option.Some("ph ph-sort-ascending"),
+              option.Some("ph ph-[sort-ascending]"),
               m.sort_field == filter.SortName,
             ),
             dropdown.MenuItem(
               "Last Updated",
               option.Some("Newest update"),
               SetSort(filter.LastChapterAdded),
-              option.Some("ph ph-sort-descending"),
+              option.Some("ph ph-[sort-descending]"),
               m.sort_field == filter.LastChapterAdded,
             ),
             dropdown.MenuItem(
               "Created At",
               option.Some("Recently added"),
               SetSort(filter.CreatedDate),
-              option.Some("ph ph-sort-ascending"),
+              option.Some("ph ph-[sort-ascending]"),
               m.sort_field == filter.CreatedDate,
             ),
           ],
         ),
         button.icon(
-          "ph "
-            <> case m.ascending {
-            False -> "ph-arrow-up"
-            True -> "ph-arrow-down"
+          case m.ascending {
+            False -> "ph ph-[arrow-up]"
+            True -> "ph ph-[arrow-down]"
           },
+          "Toggle sort direction",
           [
             button.secondary(),
             event.on_click(ToggleAscending),
@@ -488,8 +436,17 @@ fn filter_panel(m: Model) {
         ]
           |> list.map(fn(rating) {
             filter_chip(
-              series_api.age_rating_label(rating),
-              series.age_rating_color(rating),
+              series.age_rating_label(rating),
+              case rating {
+                series_api.RatingPending
+                | series_api.EarlyChildhood
+                | series_api.Everyone
+                | series_api.Everyone10Plus -> "bg-emerald-500 text-emerald-400"
+                series_api.Teen -> "bg-amber-500 text-amber-400"
+                series_api.Mature17Plus -> "bg-orange-500 text-orange-400"
+                series_api.AdultsOnly -> "bg-red-500 text-red-400"
+                _ -> "bg-zinc-700 text-zinc-400"
+              },
               ToggleAgeRating(rating),
               list.contains(m.active_ratings, rating),
             )
@@ -549,7 +506,7 @@ fn filter_panel(m: Model) {
                 ],
                 [element.text("Tags & Genres")],
               ),
-              html.span([attribute.class("text-xs text-zinc-600")], [
+              html.span([attribute.class("text-xs text-zinc-400")], [
                 element.text("tap: include → exclude"),
               ]),
             ],
@@ -561,10 +518,10 @@ fn filter_panel(m: Model) {
               ),
             ],
             [
-              html.i([attribute.class("ph ph-magnifying-glass text-sm")], []),
+              html.i([attribute.class("ph ph-[magnifying-glass] text-sm")], []),
               html.input([
                 attribute.class(
-                  "bg-transparent outline-none text-sm text-white placeholder:text-zinc-500 w-full",
+                  "bg-transparent outline-none text-sm text-white placeholder:text-zinc-400 w-full",
                 ),
                 attribute.placeholder("Filter tags..."),
                 attribute.value(m.tag_search),
@@ -631,7 +588,7 @@ fn filter_chip(label: String, color: String, on_click: msg, active: Bool) {
         html.i(
           [
             attribute.class(color),
-            attribute.class("text-xs ph-fill ph-circle bg-transparent!"),
+            attribute.class("text-xs ph ph-[circle--fill]"),
           ],
           [],
         ),
@@ -666,9 +623,9 @@ fn filter_tag(label: String, state: TagState, on_click: msg) {
     [
       case state {
         TagIncluded ->
-          html.i([attribute.class("ph-bold ph-check text-[0.6rem]")], [])
+          html.i([attribute.class("ph ph-[check--bold] text-[0.6rem]")], [])
         TagExcluded ->
-          html.i([attribute.class("ph-bold ph-minus text-[0.6rem]")], [])
+          html.i([attribute.class("ph ph-[minus--bold] text-[0.6rem]")], [])
         TagInactive -> element.none()
       },
       html.span(
@@ -702,7 +659,7 @@ fn filter_section(
       case hint {
         "" -> element.none()
         _ ->
-          html.span([attribute.class("text-xs text-zinc-600")], [
+          html.span([attribute.class("text-xs text-zinc-400")], [
             element.text(hint),
           ])
       },
@@ -767,7 +724,7 @@ fn pagination_bar(m: Model) {
   let prev_disabled = m.page <= 1
   let next_disabled = m.has_more |> bool.negate
   html.div([attribute.class("flex items-center justify-center gap-3 py-2")], [
-    button.icon("ph ph-arrow-left", [
+    button.icon("ph ph-[arrow-left]", "Previous page", [
       event.on_click(GoToPage(m.page - 1)),
       button.secondary(),
       attribute.disabled(prev_disabled),
@@ -775,7 +732,7 @@ fn pagination_bar(m: Model) {
     html.span([attribute.class("text-sm text-zinc-400")], [
       element.text("Page " <> int.to_string(m.page)),
     ]),
-    button.icon("ph ph-arrow-right", [
+    button.icon("ph ph-[arrow-right]", "Next page", [
       event.on_click(GoToPage(m.page + 1)),
       button.secondary(),
       attribute.disabled(next_disabled),

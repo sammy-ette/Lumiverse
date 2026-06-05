@@ -71,7 +71,6 @@ type Msg {
   MetadataUpdated(Result(Nil, rsvp.Error))
   EditSubmitted(Result(SeriesEdit, form.Form(SeriesEdit)))
   Read
-  RequestUpdate
   Admin(Bool)
   UpdateNewTagInput(String)
   SubmitNewTag
@@ -190,7 +189,6 @@ fn update(m: Model, msg: Msg) {
       )
     }
     ContinuePointRetrieved(Error(_)) -> #(m, effect.none())
-    RequestUpdate -> #(m, effect.none())
     UpdateNewTagInput(value) -> #(
       Model(..m, new_tag_input: value),
       effect.none(),
@@ -307,15 +305,117 @@ fn update(m: Model, msg: Msg) {
 
 fn view(m: Model) {
   case m.series {
-    option.None -> element.none()
     option.Some(Error(_)) -> error.page(error.NotFound)
-    option.Some(Ok(series)) ->
-      case series.metadata, m.details {
+    option.Some(Ok(srs)) ->
+      case srs.metadata, m.details {
         option.Some(metadata), option.Some(details) ->
-          display(m, series, metadata, details)
-        _, _ -> element.none()
+          display(m, srs, metadata, details)
+        _, _ -> loading_display(option.Some(srs))
       }
+    option.None -> loading_display(option.None)
   }
+}
+
+fn loading_display(srs: option.Option(series.Series)) {
+  let account = account.get()
+  let api_key = account |> account.image_key
+  html.div([attribute.class("font-[Poppins,sans-serif] space-y-4 relative")], [
+    html.div(
+      [
+        attribute.class(
+          "absolute -top-4 -left-4 -right-4 h-72 sm:h-80 overflow-hidden pointer-events-none",
+        ),
+      ],
+      [
+        case srs {
+          option.Some(s) ->
+            html.img([
+              attribute.class(
+                "absolute inset-0 w-full h-full object-cover blur-xl opacity-15 scale-110",
+              ),
+              attribute.src(image_url.series_cover_blur(s.id, api_key)),
+              attribute.alt(""),
+              attribute.attribute("aria-hidden", "true"),
+              attribute.attribute("fetchpriority", "low"),
+            ])
+          option.None -> element.none()
+        },
+        html.div(
+          [
+            attribute.class(
+              "absolute inset-0 bg-gradient-to-b from-zinc-950/20 to-zinc-950",
+            ),
+          ],
+          [],
+        ),
+      ],
+    ),
+    html.div(
+      [attribute.class("relative z-10 flex flex-col sm:flex-row gap-4")],
+      [
+        case srs {
+          option.Some(s) ->
+            html.img([
+              attribute.class(
+                "max-sm:self-center bg-zinc-800 rounded-lg h-64 sm:h-72 aspect-[2/3] flex-shrink-0 object-cover shadow-2xl shadow-zinc-950",
+              ),
+              attribute.src(image_url.series_cover_w(s.id, api_key, 800)),
+              attribute.attribute("fetchpriority", "high"),
+              attribute.alt(""),
+            ])
+          option.None ->
+            html.div(
+              [
+                attribute.class(
+                  "max-sm:self-center bg-zinc-800 rounded-lg h-64 sm:h-72 aspect-[2/3] flex-shrink-0 animate-pulse",
+                ),
+              ],
+              [],
+            )
+        },
+        html.div([attribute.class("flex flex-col gap-5 min-w-0 flex-1")], [
+          html.div(
+            [
+              attribute.class(
+                "h-10 sm:h-14 w-3/4 bg-zinc-800 rounded animate-pulse",
+              ),
+            ],
+            [],
+          ),
+          html.div(
+            [attribute.class("h-4 w-1/2 bg-zinc-800 rounded animate-pulse")],
+            [],
+          ),
+          html.div(
+            [attribute.class("h-3.5 w-32 bg-zinc-800 rounded animate-pulse")],
+            [],
+          ),
+          html.div(
+            [attribute.class("h-9 w-36 bg-zinc-800 rounded-lg animate-pulse")],
+            [],
+          ),
+        ]),
+      ],
+    ),
+    html.div([attribute.class("relative z-10 space-y-3 pt-2")], [
+      html.div(
+        [attribute.class("h-5 w-16 bg-zinc-800 rounded animate-pulse")],
+        [],
+      ),
+      html.div(
+        [attribute.class("h-4 w-full bg-zinc-800 rounded animate-pulse")],
+        [],
+      ),
+      html.div(
+        [attribute.class("h-4 w-5/6 bg-zinc-800 rounded animate-pulse")],
+        [],
+      ),
+      html.div(
+        [attribute.class("h-4 w-4/6 bg-zinc-800 rounded animate-pulse")],
+        [],
+      ),
+    ]),
+  ])
 }
 
 fn display(
@@ -326,7 +426,9 @@ fn display(
 ) {
   let new_time_range = date.get_time(date.now()) - 3 * { 24 * 60 * 60 * 1000 }
   let account = account.get()
-  let cover_url = image_url.series_cover(srs.id, account |> account.image_key)
+  let api_key = account |> account.image_key
+  let cover_url = image_url.series_cover_w(srs.id, api_key, 800)
+  let blur_url = image_url.series_cover_blur(srs.id, api_key)
 
   html.div(
     [
@@ -344,7 +446,7 @@ fn display(
             attribute.class(
               "absolute inset-0 w-full h-full object-cover blur-xl opacity-15 scale-110",
             ),
-            attribute.src(cover_url),
+            attribute.src(blur_url),
             attribute.attribute("aria-hidden", "true"),
             attribute.attribute("fetchpriority", "low"),
           ]),
@@ -367,7 +469,7 @@ fn display(
         [
           html.img([
             attribute.class(
-              "max-sm:self-center bg-zinc-800 rounded-lg h-64 sm:h-72 flex-shrink-0 object-cover shadow-2xl shadow-zinc-950",
+              "max-sm:self-center bg-zinc-800 rounded-lg h-64 sm:h-72 aspect-[2/3] flex-shrink-0 object-cover shadow-2xl shadow-zinc-950",
             ),
             attribute.src(cover_url),
             attribute.rel("preload"),
@@ -515,7 +617,7 @@ fn display(
             ]),
             html.div([attribute.class("flex flex-wrap gap-2")], [
               button.icon_label(
-                "ph ph-book-open-text text-2xl",
+                "ph ph-[book-open-text] text-2xl",
                 case srs.pages_read {
                   0 -> "Start Reading"
                   _ ->
@@ -530,23 +632,18 @@ fn display(
                   attribute.class("font-semibold"),
                 ],
               ),
-              // button.icon_label(
-              //   "ph ph-clock-counter-clockwise text-2xl",
-              //   "Request Update",
-              //   [
-              //     event.on_click(RequestUpdate),
-              //     button.secondary(),
-              //     attribute.class("font-medium"),
-              //   ],
-              // ),
               case m.admin {
                 False -> element.none()
                 True ->
-                  button.icon("ph ph-pencil-simple-line text-2xl", [
-                    event.on_click(ShowEditor(True)),
-                    button.secondary(),
-                    attribute.class("font-medium"),
-                  ])
+                  button.icon(
+                    "ph ph-[pencil-simple-line] text-2xl",
+                    "Edit series",
+                    [
+                      event.on_click(ShowEditor(True)),
+                      button.secondary(),
+                      attribute.class("font-medium"),
+                    ],
+                  )
               },
             ]),
             html.div(
@@ -573,33 +670,36 @@ fn display(
                     ],
                     [
                       html.i(
-                        [attribute.class("ph-bold ph-plus text-[1.1rem]")],
+                        [attribute.class("ph ph-[plus--bold] text-[1.1rem]")],
                         [],
                       ),
                     ],
                   ),
-                  html.span([attribute.class("inline-flex items-center")], [
-                    html.i(
-                      [
-                        attribute.class(
-                          "ph-fill ph-circle "
-                          <> case metadata.publication_status {
-                            series.Ongoing -> "text-green-400"
-                            series.Hiatus -> "text-orange-400"
-                            series.Completed | series.Ended -> "text-sky-400"
-                            series.Cancelled -> "text-red-400"
-                            _ -> "text-gray-400"
-                          },
+                  html.span(
+                    [attribute.class("inline-flex items-center gap-1")],
+                    [
+                      html.i(
+                        [
+                          attribute.class(
+                            "ph ph-[circle--fill] "
+                            <> case metadata.publication_status {
+                              series.Ongoing -> "text-green-400"
+                              series.Hiatus -> "text-orange-400"
+                              series.Completed | series.Ended -> "text-sky-400"
+                              series.Cancelled -> "text-red-400"
+                              _ -> "text-gray-400"
+                            },
+                          ),
+                        ],
+                        [],
+                      ),
+                      html.span([attribute.class(tag.tag_appearance)], [
+                        element.text(
+                          series.publication_label(metadata.publication_status),
                         ),
-                      ],
-                      [],
-                    ),
-                    tag.simple(
-                      series.publication_title(metadata.publication_status)
-                        |> string.capitalise,
-                      [attribute.class("px-1!")],
-                    ),
-                  ]),
+                      ]),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -680,8 +780,8 @@ fn display(
                       ),
                       button.icon_label(
                         case m.sort_ascending {
-                          True -> "ph ph-sort-ascending text-2xl"
-                          False -> "ph ph-sort-descending text-2xl"
+                          True -> "ph ph-[sort-ascending] text-2xl"
+                          False -> "ph ph-[sort-descending] text-2xl"
                         },
                         case m.sort_ascending {
                           True -> "Ascending"
@@ -707,9 +807,7 @@ fn display(
                       StorylineVolume(vol, sort_key)
                     })
                   let chp_items =
-                    list.map(filtered_chapters, fn(chp) {
-                      StorylineChapter(chp)
-                    })
+                    list.map(filtered_chapters, StorylineChapter)
                   let storyline =
                     list.sort(list.append(vol_items, chp_items), fn(a, b) {
                       let key_a = case a {
@@ -886,7 +984,9 @@ fn editor(m: Model, srs: series.Series, metadata: series.Metadata) {
             html.h1([attribute.class("font-bold text-2xl")], [
               element.text("Edit Series"),
             ]),
-            button.icon("ph ph-x text-2xl", [event.on_click(ShowEditor(False))]),
+            button.icon("ph ph-[x] text-2xl", "Close editor", [
+              event.on_click(ShowEditor(False)),
+            ]),
           ]),
           html.form(
             [
@@ -945,7 +1045,7 @@ fn editor(m: Model, srs: series.Series, metadata: series.Metadata) {
                       }
                     }),
                   ]),
-                  button.icon("ph ph-plus", [
+                  button.icon("ph ph-[plus]", "Add tag", [
                     attribute.type_("button"),
                     button.secondary(),
                     event.on_click(SubmitNewTag),

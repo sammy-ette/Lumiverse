@@ -291,7 +291,7 @@ fn view(m: Model) {
       html.h1([attribute.class("text-5xl font-bold")], [
         element.text("Libraries"),
       ]),
-      button.icon_label("ph-bold ph-stack-plus text-xl", "Add Library", [
+      button.icon_label("ph ph-[stack-plus--bold] text-xl", "Add Library", [
         button.primary(),
         attribute.class("font-bold"),
         event.on_click(
@@ -384,7 +384,7 @@ fn view(m: Model) {
               ]),
               html.td([attribute.class("py-2 px-4 text-sm")], [
                 html.div([attribute.class("relative")], [
-                  button.icon("ph ph-dots-three-vertical", [
+                  button.icon("ph ph-[dots-three-vertical]", "Library options", [
                     attribute.class("p-1"),
                     event.on_click(
                       ShowMenu(case m.show_menu {
@@ -486,7 +486,7 @@ fn menu_item(icon: String, label: String, msg: Msg, color: String) {
       event.on_click(msg),
     ],
     [
-      html.i([attribute.class("ph ph-" <> icon <> " text-base")], []),
+      html.i([attribute.class("ph ph-[" <> icon <> "] text-base")], []),
       element.text(label),
     ],
   )
@@ -578,7 +578,7 @@ fn creator(m: Model) {
             html.h1([attribute.class("font-bold text-xl")], [
               element.text("Add Library"),
             ]),
-            button.icon("ph ph-x text-2xl", [event.on_click(ShowCreator(option.None))]),
+            button.icon("ph ph-[x] text-2xl", "Close", [event.on_click(ShowCreator(option.None))]),
           ]),
           html.div(
             [attribute.class("flex-1 overflow-y-auto flex flex-col gap-4 pr-1")],
@@ -706,7 +706,7 @@ fn creator(m: Model) {
                             html.span([attribute.class("text-zinc-200")], [
                               element.text(f),
                             ]),
-                            button.icon("ph ph-x text-zinc-400", [
+                            button.icon("ph ph-[x] text-zinc-400", "Remove", [
                               attribute.type_("button"),
                               event.on_click(RemoveFolder(f)),
                             ]),
@@ -747,7 +747,7 @@ fn creator(m: Model) {
                             html.span([attribute.class("text-zinc-200")], [
                               element.text(p),
                             ]),
-                            button.icon("ph ph-x text-zinc-400 text-xs", [
+                            button.icon("ph ph-[x] text-zinc-400 text-xs", "Remove", [
                               attribute.type_("button"),
                               event.on_click(RemoveExcludePattern(p)),
                             ]),

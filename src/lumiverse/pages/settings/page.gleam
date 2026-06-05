@@ -87,10 +87,9 @@ fn section(m: Model, title: String) {
       [
         html.i(
           [
-            attribute.class("text-2xl ph "),
             case m.collapsed |> list.contains(title) {
-              True -> attribute.class("ph-caret-right")
-              False -> attribute.class("ph-caret-down")
+              True -> attribute.class("ph ph-[caret-right] text-2xl")
+              False -> attribute.class("ph ph-[caret-down] text-2xl")
             },
           ],
           [],

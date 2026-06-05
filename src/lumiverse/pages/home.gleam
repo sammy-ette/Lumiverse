@@ -115,16 +115,16 @@ fn update(m: Model, msg: Msg) {
       #(
         Model(
           ..m,
-          dashboard_rows: case list.length(srs_list.items) {
-            0 -> m.dashboard_rows
-            _ ->
+          dashboard_rows: case list.is_empty(srs_list.items) {
+            True -> m.dashboard_rows
+            False ->
               list.sort([srs_list, ..m.dashboard_rows], fn(a, b) {
                 int.compare(a.idx, b.idx)
               })
           },
-          dashboard_count: case list.length(srs_list.items) {
-            0 -> m.dashboard_count - 1
-            _ -> m.dashboard_count
+          dashboard_count: case list.is_empty(srs_list.items) {
+            True -> m.dashboard_count - 1
+            False -> m.dashboard_count
           },
           carousel:,
         ),
@@ -226,13 +226,13 @@ fn view(m: Model) {
                 ),
               ],
               [
-                button.icon("ph ph-caret-left text-xl", [
+                button.icon("ph ph-[caret-left] text-xl", "Previous", [
                   event.on_click(CarouselTick(-1)),
                   attribute.class(
                     "rounded-full bg-zinc-950/60 backdrop-blur-sm p-2 hover:bg-zinc-800/70",
                   ),
                 ]),
-                button.icon("ph ph-caret-right text-xl", [
+                button.icon("ph ph-[caret-right] text-xl", "Next", [
                   event.on_click(CarouselTick(1)),
                   attribute.class(
                     "rounded-full bg-zinc-950/60 backdrop-blur-sm p-2 hover:bg-zinc-800/70",
@@ -263,15 +263,6 @@ fn view(m: Model) {
                             element.text(row.title),
                           ]),
                         ]),
-                        // html.a(
-                      //   [
-                      //     attribute.href("/search"),
-                      //     attribute.class(
-                      //       "text-sm text-zinc-500 hover:text-violet-400 transition-colors shrink-0",
-                      //     ),
-                      //   ],
-                      //   [element.text("See all →")],
-                      // ),
                       ],
                     ),
                     html.div(
@@ -307,10 +298,6 @@ fn view(m: Model) {
                             [],
                           ),
                         ]),
-                        // html.div(
-                        //   [attribute.class("w-14 h-4 bg-zinc-800 rounded animate-pulse")],
-                        //   [],
-                        // ),
                         element.none(),
                       ],
                     ),
@@ -335,21 +322,27 @@ fn view(m: Model) {
 }
 
 fn carousel(m: Model, srs_list: stream.SeriesList) {
-  list.map(srs_list.items, fn(serie) {
+  list.index_map(srs_list.items, fn(serie, idx) {
     let metadata = dict.get(m.metadata, serie.id)
+    let is_active = idx == m.carousel_index
+    let priority_attrs = case is_active {
+      True -> [
+        attribute.attribute("fetchpriority", "high"),
+      ]
+      False -> [attribute.attribute("loading", "lazy")]
+    }
     html.a(
       [
         attribute.href("/series/" <> serie.id |> int.to_string),
         attribute.class("relative flex w-full h-full flex-shrink-0"),
       ],
       [
-        // Full-bleed background image
         html.div([attribute.class("absolute inset-0 bg-zinc-800")], [
-          series.cover_image(serie, [
+          series.cover_image_w(serie, 800, [
             attribute.class("w-full h-full object-cover"),
+            ..priority_attrs
           ]),
         ]),
-        // Mobile: top-anchored cover + text
         html.div(
           [
             attribute.class(
@@ -361,6 +354,7 @@ fn carousel(m: Model, srs_list: stream.SeriesList) {
               attribute.class(
                 "bg-zinc-800 rounded-lg w-24 h-36 object-cover flex-shrink-0",
               ),
+              ..priority_attrs
             ]),
             html.div([attribute.class("flex flex-col gap-2 min-w-0 pt-1")], [
               html.h1(
@@ -384,7 +378,7 @@ fn carousel(m: Model, srs_list: stream.SeriesList) {
               html.span(
                 [
                   attribute.class(
-                    "inline-flex w-fit items-center px-3 py-1.5 rounded-lg bg-violet-500 text-white text-xs font-semibold",
+                    "inline-flex w-fit items-center px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-semibold",
                   ),
                 ],
                 [element.text("Read Now →")],
@@ -392,7 +386,6 @@ fn carousel(m: Model, srs_list: stream.SeriesList) {
             ]),
           ],
         ),
-        // Desktop: side-by-side layout
         html.div(
           [
             attribute.class(
@@ -404,6 +397,7 @@ fn carousel(m: Model, srs_list: stream.SeriesList) {
               attribute.class(
                 "bg-zinc-800 rounded-lg h-72 w-48 object-cover flex-shrink-0 shadow-2xl shadow-zinc-950",
               ),
+              ..priority_attrs
             ]),
             html.div([attribute.class("flex flex-col gap-2 min-w-0 flex-1")], [
               html.h1([attribute.class("font-extrabold text-5xl")], [
@@ -429,7 +423,7 @@ fn carousel(m: Model, srs_list: stream.SeriesList) {
                       html.span(
                         [
                           attribute.class(
-                            "inline-flex w-fit items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-500 text-white text-sm font-semibold",
+                            "inline-flex w-fit items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-semibold",
                           ),
                         ],
                         [element.text("Read Now →")],

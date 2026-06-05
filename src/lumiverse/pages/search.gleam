@@ -9,6 +9,7 @@ import lumiverse/api/account
 import lumiverse/api/image_url
 import lumiverse/api/search
 import lumiverse/api/series
+import lumiverse/elements/series as series_elements
 import lumiverse/elements/tag
 import lustre
 import lustre/attribute
@@ -19,6 +20,7 @@ import lustre/element/html
 import lustre/event
 import modem
 import plinth/browser/document
+import plinth/javascript/global
 import rsvp
 
 type Model {
@@ -31,12 +33,15 @@ type Model {
     loading: Bool,
     pending_metadata: Int,
     show_filters: Bool,
+    search_timeout: option.Option(global.TimerID),
   )
 }
 
 type Msg {
   QueryChanged(String)
   SearchInputChanged(String)
+  SearchTimerSet(global.TimerID)
+  DoSearch(String)
   SearchSubmit
   GotResults(Result(List(search.SeriesSearchResult), rsvp.Error))
   GotMetadata(Int, Result(series.Metadata, rsvp.Error))
@@ -78,6 +83,7 @@ fn init(_) {
       loading: False,
       pending_metadata: 0,
       show_filters: False,
+      search_timeout: option.None,
     ),
     effect.none(),
   )
@@ -115,10 +121,36 @@ fn update(m: Model, msg: Msg) {
         )
       }
 
-    SearchInputChanged(q) -> #(Model(..m, query: q), case string.length(q) > 1 {
-      True -> search.search(q, GotResults)
-      False -> effect.none()
-    })
+    SearchInputChanged(q) -> {
+      let clear_eff = case m.search_timeout {
+        option.Some(tid) ->
+          effect.from(fn(_) { global.clear_timeout(tid) })
+        option.None -> effect.none()
+      }
+      let debounce_eff = case string.length(q) > 1 {
+        False -> effect.none()
+        True ->
+          effect.from(fn(dispatch) {
+            let tid =
+              global.set_timeout(300, fn() { dispatch(DoSearch(q)) })
+            dispatch(SearchTimerSet(tid))
+          })
+      }
+      #(
+        Model(..m, query: q, search_timeout: option.None),
+        effect.batch([clear_eff, debounce_eff]),
+      )
+    }
+
+    SearchTimerSet(tid) -> #(
+      Model(..m, search_timeout: option.Some(tid)),
+      effect.none(),
+    )
+
+    DoSearch(q) -> #(
+      Model(..m, search_timeout: option.None, loading: True),
+      search.search(q, GotResults),
+    )
 
     SearchSubmit ->
       case string.is_empty(m.query) {
@@ -226,37 +258,10 @@ const all_age_ratings = [
   series.AdultsOnly,
 ]
 
-fn age_rating_label(rating: series.AgeRating) -> String {
-  case rating {
-    series.NotApplicable -> "Not Applicable"
-    series.UnknownRating -> "Unknown"
-    series.RatingPending -> "Rating Pending"
-    series.EarlyChildhood -> "Early Childhood"
-    series.Everyone -> "Everyone"
-    series.Everyone10Plus -> "Everyone 10+"
-    series.Teen -> "Teen"
-    series.Mature17Plus -> "Mature 17+"
-    series.AdultsOnly -> "Adults Only"
-  }
-}
-
-fn age_rating_color(rating: series.AgeRating) -> String {
-  case rating {
-    series.RatingPending
-    | series.EarlyChildhood
-    | series.Everyone
-    | series.Everyone10Plus -> "bg-emerald-500/20 text-emerald-400"
-    series.Teen -> "bg-amber-500/20 text-amber-400"
-    series.Mature17Plus -> "bg-orange-500/20 text-orange-400"
-    series.AdultsOnly -> "bg-red-500/20 text-red-400"
-    _ -> "bg-zinc-700 text-zinc-400"
-  }
-}
-
 fn spinner() {
   html.div(
     [attribute.class("flex justify-center items-center py-16")],
-    [html.i([attribute.class("ph ph-circle-notch animate-spin text-4xl text-zinc-400")], [])],
+    [html.i([attribute.class("ph ph-[circle-notch] animate-spin text-4xl text-zinc-400")], [])],
   )
 }
 
@@ -264,7 +269,7 @@ fn empty_state(query: String) {
   html.div(
     [attribute.class("flex flex-col items-center justify-center flex-1 gap-3 text-zinc-500")],
     [
-      html.i([attribute.class("ph ph-magnifying-glass text-5xl")], []),
+      html.i([attribute.class("ph ph-[magnifying-glass] text-5xl")], []),
       case string.is_empty(query) {
         True ->
           html.p([attribute.class("text-sm")], [element.text("Type something to search")])
@@ -282,7 +287,7 @@ fn search_bar(m: Model) {
     html.i(
       [
         attribute.class(
-          "ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none",
+          "ph ph-[magnifying-glass] absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none",
         ),
       ],
       [],
@@ -336,7 +341,7 @@ fn filters_panel(m: Model, avail_tags: List(series.Tag)) {
                   }),
                   event.on_click(SetAgeRating(option.Some(rating))),
                 ],
-                [element.text(age_rating_label(rating))],
+                [element.text(series_elements.age_rating_label(rating))],
               )
             })
           ],
@@ -369,7 +374,7 @@ fn filters_panel(m: Model, avail_tags: List(series.Tag)) {
                 html.button(
                   [
                     attribute.class(case active {
-                      True -> "text-xs px-2 py-0.5 rounded-full bg-violet-500 text-white"
+                      True -> "text-xs px-2 py-0.5 rounded-full bg-violet-600 text-white"
                       False -> "text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
                     }),
                     event.on_click(ToggleTag(t.id)),
@@ -386,7 +391,7 @@ fn filters_panel(m: Model, avail_tags: List(series.Tag)) {
 
 fn result_row(m: Model, r: search.SeriesSearchResult) {
   let user = account.get()
-  let cover_url = image_url.series_cover(r.series_id, account.image_key(user))
+  let cover_url = image_url.series_cover_w(r.series_id, account.image_key(user), 100)
   html.a(
     [
       attribute.href("/series/" <> int.to_string(r.series_id)),
@@ -397,6 +402,7 @@ fn result_row(m: Model, r: search.SeriesSearchResult) {
     [
       html.img([
         attribute.src(cover_url),
+        attribute.alt(r.name),
         attribute.class("w-12 h-[4.5rem] object-cover rounded flex-shrink-0"),
         attribute.attribute("loading", "lazy"),
       ]),
@@ -438,10 +444,10 @@ fn result_row(m: Model, r: search.SeriesSearchResult) {
                 [
                   attribute.class(
                     "shrink-0 self-start text-xs font-bold px-1.5 py-0.5 rounded "
-                    <> age_rating_color(rating),
+                    <> series_elements.age_rating_color(rating),
                   ),
                 ],
-                [element.text(age_rating_label(rating))],
+                [element.text(series_elements.age_rating_label(rating))],
               )
           }
       },
@@ -463,7 +469,6 @@ fn view(m: Model) {
         True -> spinner()
         False ->
           html.div([attribute.class("flex flex-col md:flex-row flex-1 gap-6")], [
-            // Filters — collapsible on mobile, sidebar on desktop
             html.div([attribute.class("md:w-48 shrink-0 space-y-3")], [
               html.button(
                 [
@@ -477,7 +482,7 @@ fn view(m: Model) {
                   event.on_click(ToggleFilters),
                 ],
                 [
-                  html.i([attribute.class("ph ph-funnel")], []),
+                  html.i([attribute.class("ph ph-[funnel]")], []),
                   element.text(case has_filters {
                     True -> "Filters (active)"
                     False -> "Filters"
@@ -485,8 +490,8 @@ fn view(m: Model) {
                   html.i(
                     [
                       attribute.class(case m.show_filters {
-                        True -> "ph ph-caret-up text-xs"
-                        False -> "ph ph-caret-down text-xs"
+                        True -> "ph ph-[caret-up] text-xs"
+                        False -> "ph ph-[caret-down] text-xs"
                       }),
                     ],
                     [],
@@ -503,7 +508,6 @@ fn view(m: Model) {
                 [filters_panel(m, avail_tags)],
               ),
             ]),
-            // Results
             case results {
               [] -> empty_state(m.query)
               _ ->

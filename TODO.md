@@ -42,7 +42,6 @@
 ## Admin / Library
 - [ ] Library statistics — total series, chapters, pages, storage used
 - [ ] Cover refresh / metadata re-pull — trigger from the series page
-- [ ] Duplicate series detection — flag series that may be duplicates
 
 ## Integrations / Platform
 - [ ] Scrobbling status UI — show AniList/MAL sync state (Kavita already tracks this)

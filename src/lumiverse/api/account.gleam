@@ -100,6 +100,7 @@ pub type Role {
   ReadOnly
   Login
   Promote
+  Pleb
   Unknown(String)
 }
 
@@ -126,6 +127,7 @@ pub fn role_to_string(role: Role) -> String {
     ReadOnly -> "Read Only"
     Login -> "Login"
     Promote -> "Promote"
+    Pleb -> "Pleb"
     Unknown(s) -> s
   }
 }
@@ -145,6 +147,7 @@ fn role_decoder() -> decode.Decoder(Role) {
     "read only" -> decode.success(ReadOnly)
     "login" -> decode.success(Login)
     "promote" -> decode.success(Promote)
+    "pleb" -> decode.success(Pleb)
     role -> decode.success(Unknown(role))
   }
 }
@@ -183,7 +186,11 @@ pub fn clear_oidc_link(resp: api.Response(Nil, a)) {
   )
 }
 
-pub fn login(username: String, password: String, resp: api.Response(Account, a)) {
+pub fn login(
+  username: String,
+  password: String,
+  resp: api.Response(Account, a),
+) {
   let req_json =
     json.object([
       #("username", json.string(username)),

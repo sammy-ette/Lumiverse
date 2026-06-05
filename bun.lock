@@ -1,0 +1,19 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "dependencies": {
+        "phosphor-icons-tailwindcss": "^1.2.2",
+      },
+    },
+  },
+  "packages": {
+    "@phosphor-icons/core": ["@phosphor-icons/core@2.1.1", "", {}, "sha512-v4ARvrip4qBCImOE5rmPUylOEK4iiED9ZyKjcvzuezqMaiRASCHKcRIuvvxL/twvLpkfnEODCOJp5dM4eZilxQ=="],
+
+    "import-meta-resolve": ["import-meta-resolve@4.2.0", "", {}, "sha512-Iqv2fzaTQN28s/FwZAoFq0ZSs/7hMAHJVX+w8PZl3cY19Pxk6jFFalxQoIfW2826i/fDLXv8IiEZRIT0lDuWcg=="],
+
+    "phosphor-icons-tailwindcss": ["phosphor-icons-tailwindcss@1.2.2", "", { "dependencies": { "@phosphor-icons/core": "^2.1.1", "import-meta-resolve": "^4.1.0" }, "peerDependencies": { "tailwindcss": ">=3.4.14 || >=4.0.0" } }, "sha512-u6W0Hy5RwQQjBNGRY8W4rbN1BApiSfXzHnP5lttjJ7cswKRncaoEngREi+mIwOV6Bi6NuJVbB4Cwav3t2ehApA=="],
+
+    "tailwindcss": ["tailwindcss@4.3.0", "", {}, "sha512-y6nxMGB1nMW9R6k96e5gdIFzcfL/gTJRNaqGes1YvkLnPVXzWgbqFF2yLC0T8G774n24cx3Pe8XrKoniCOAH+Q=="],
+  }
+}

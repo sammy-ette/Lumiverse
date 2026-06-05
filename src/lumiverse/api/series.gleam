@@ -352,34 +352,6 @@ pub fn age_rating_to_int(rating: AgeRating) -> Int {
   }
 }
 
-pub fn age_rating_from_int(n: Int) -> AgeRating {
-  case n {
-    -1 -> NotApplicable
-    1 -> RatingPending
-    2 -> EarlyChildhood
-    3 | 4 -> Everyone
-    5 | 6 | 7 -> Everyone10Plus
-    8 -> Teen
-    9 | 10 | 11 -> Mature17Plus
-    r if r >= 12 -> AdultsOnly
-    _ -> UnknownRating
-  }
-}
-
-pub fn age_rating_label(rating: AgeRating) -> String {
-  case rating {
-    NotApplicable -> "Not Applicable"
-    UnknownRating -> "Unknown"
-    RatingPending -> "Rating Pending"
-    EarlyChildhood -> "Early Childhood"
-    Everyone -> "Everyone"
-    Everyone10Plus -> "Everyone 10+"
-    Teen -> "Teen"
-    Mature17Plus -> "Mature (17+)"
-    AdultsOnly -> "Adults Only"
-  }
-}
-
 pub fn all_age_ratings() -> List(AgeRating) {
   [
     UnknownRating,
@@ -430,17 +402,6 @@ fn dynamic_publication(
         _ -> Error(Unknown)
       }
     Error(_) -> Error(Invalid)
-  }
-}
-
-pub fn publication_title(publication: Publication) -> String {
-  case publication {
-    Ongoing -> "ongoing"
-    Hiatus -> "hiatus"
-    Completed -> "completed"
-    Cancelled -> "cancelled"
-    Ended -> "ended"
-    _ -> "unknown"
   }
 }
 
@@ -574,9 +535,7 @@ pub fn all(
   resp: api.Response(List(SeriesMinimal), a),
 ) {
   fetch.post(
-    "/api/series/all-v2?pageNumber="
-      <> int.to_string(page)
-      <> "&pageSize=30",
+    "/api/series/all-v2?pageNumber=" <> int.to_string(page) <> "&pageSize=30",
     filter.encode_smart_filter(filter.SmartFilter(
       id: 0,
       name: "",

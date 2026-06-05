@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,7 +17,9 @@ import (
 	"github.com/davidbyttow/govips/v2/vips"
 	"github.com/glebarez/sqlite"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/compress"
 	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/etag"
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/proxy"
 	"gorm.io/gorm"
@@ -25,15 +28,15 @@ import (
 
 var (
 	db               *gorm.DB
-	httpClient       = &http.Client{Timeout: 10 * time.Second}
-	noRedirectClient = &http.Client{
-		Timeout: 10 * time.Second,
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-	kavitaURL    string
-	kavitaAPIKey string
+	httpClient       *http.Client
+	noRedirectClient *http.Client
+	kavitaURL        string
+	kavitaAPIKey     string
+
+	// Static assets loaded at startup
+	cssBytes  []byte
+	jsBytes   []byte
+	swVersion string
 )
 
 type UserPreference struct {
@@ -95,6 +98,11 @@ func getUserByUsername(username string) (*KavitaUser, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("kavita returned %d: %s", resp.StatusCode, body)
+	}
 
 	var users []KavitaUser
 	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
@@ -362,25 +370,49 @@ func serveIndex(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).SendString("not found")
 	}
-	html := string(data)
-	c.Set("Cache-Control", "no-store")
+	html := strings.ReplaceAll(string(data), "__ASSET_VERSION__", swVersion)
+	c.Set("Cache-Control", "no-cache")
 	c.Set("Content-Type", "text/html; charset=utf-8")
 	return c.SendString(html)
 }
 
-func serveAsset(path, contentType string) fiber.Handler {
+func serveMemory(data []byte, contentType string) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return c.Status(fiber.StatusNotFound).SendString("not found")
-		}
-		c.Set("Cache-Control", "no-cache")
+		c.Set("Cache-Control", "public, max-age=31536000, immutable")
 		c.Set("Content-Type", contentType)
 		return c.Send(data)
 	}
 }
 
+func loadAssets() {
+	var err error
+	cssBytes, err = os.ReadFile("./dist/lumiverse.css")
+	if err != nil {
+		log.Fatal("could not read lumiverse.css: %v", err)
+	}
+	jsBytes, err = os.ReadFile("./dist/lumiverse.js")
+	if err != nil {
+		log.Fatal("could not read lumiverse.js: %v", err)
+	}
+
+	// Compute version hash from JS+CSS for Service Worker cache busting.
+	// Changes automatically on every deploy without manual bumping.
+	h := sha256.New()
+	h.Write(jsBytes)
+	h.Write(cssBytes)
+	swVersion = fmt.Sprintf("%x", h.Sum(nil))[:8]
+}
+
 func main() {
+	kavitaURL = os.Getenv("KAVITA_URL")
+	kavitaAPIKey = os.Getenv("KAVITA_API_KEY")
+
+	if kavitaURL == "" {
+		log.Fatal("KAVITA_URL not set")
+	}
+
+	loadAssets()
+
 	if err := vips.Startup(nil); err != nil {
 		log.Printf("WARNING: libvips startup failed: %v — image proxy will be unavailable", err)
 	} else {
@@ -388,11 +420,23 @@ func main() {
 	}
 	initImageProxy()
 
-	kavitaURL = os.Getenv("KAVITA_URL")
-	kavitaAPIKey = os.Getenv("KAVITA_API_KEY")
-
-	if kavitaURL == "" {
-		log.Println("WARNING: KAVITA_URL not set")
+	newTransport := func() *http.Transport {
+		return &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 20,
+			IdleConnTimeout:     90 * time.Second,
+		}
+	}
+	httpClient = &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: newTransport(),
+	}
+	noRedirectClient = &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: newTransport(),
 	}
 
 	dbPath := os.Getenv("DB_PATH")
@@ -407,11 +451,26 @@ func main() {
 	if err != nil {
 		log.Fatal("open db:", err)
 	}
+	db.Exec("PRAGMA journal_mode=WAL")
+	db.Exec("PRAGMA synchronous=NORMAL")
+	db.Exec("PRAGMA cache_size=10000")
+	db.Exec("PRAGMA temp_store=memory")
+	sqlDB, _ := db.DB()
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
+	sqlDB.SetConnMaxLifetime(time.Hour)
 	db.AutoMigrate(&UserPreference{})
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		ReadBufferSize:  16 * 1024,
+		WriteBufferSize: 16 * 1024,
+		ReadTimeout:     30 * time.Second,
+		WriteTimeout:    60 * time.Second,
+		IdleTimeout:     120 * time.Second,
+	})
 	app.Use(logger.New())
 	app.Use(cors.New())
+	app.Use(compress.New(compress.Config{Level: compress.LevelBestSpeed}))
 
 	lumiverse := app.Group("/api/lumiverse", authRequired)
 	lumiverse.Get("/preferences", getPreferences)
@@ -431,9 +490,20 @@ func main() {
 		app.All("/oidc/*", oidcProxy)
 	}
 
-	app.Get("/lumiverse.css", serveAsset("./dist/lumiverse.css", "text/css; charset=utf-8"))
-	app.Get("/lumiverse.js", serveAsset("./dist/lumiverse.js", "application/javascript; charset=utf-8"))
-	app.Get("/lumiverse.mjs", serveAsset("./dist/lumiverse.mjs", "application/javascript; charset=utf-8"))
+	app.Get("/lumiverse.css", etag.New(), serveMemory(cssBytes, "text/css; charset=utf-8"))
+	app.Get("/lumiverse.js", etag.New(), serveMemory(jsBytes, "application/javascript; charset=utf-8"))
+
+	app.Get("/sw.js", func(c fiber.Ctx) error {
+		swData, err := os.ReadFile("./sw.js")
+		if err != nil {
+			return c.Status(fiber.StatusNotFound).SendString("not found")
+		}
+		versioned := strings.ReplaceAll(string(swData), "__CACHE_VERSION__", swVersion)
+		c.Set("Cache-Control", "no-cache, no-store")
+		c.Set("Content-Type", "application/javascript; charset=utf-8")
+		return c.SendString(versioned)
+	})
+
 	app.Get("/*", serveIndex)
 
 	port := os.Getenv("PORT")

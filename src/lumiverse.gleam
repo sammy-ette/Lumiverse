@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/dynamic/decode
 import gleam/http/response
 import gleam/int
@@ -14,13 +15,13 @@ import lumiverse/api/library
 import lumiverse/api/lumiverse as lumiverse_api
 import lumiverse/api/search as search_api
 import lumiverse/api/series as series_api
-import lumiverse/elements/button
+import lumiverse/elements/dropdown
 import lumiverse/pages/all
 import lumiverse/pages/error
 import lumiverse/pages/home
 import lumiverse/pages/login
 import lumiverse/pages/preferences
-import lumiverse/pages/reader
+import lumiverse/pages/reader/page as reader
 import lumiverse/pages/search
 import lumiverse/pages/series
 import lumiverse/pages/settings/page as settings
@@ -46,12 +47,16 @@ type Model {
     next_toast_id: Int,
     search_query: String,
     search_preview: option.Option(List(search_api.SeriesSearchResult)),
+    search_timeout: option.Option(global.TimerID),
     max_age_rating: Int,
+    lumiverse_dropdown_open: Bool,
+    user_dropdown_open: Bool,
   )
 }
 
 pub type Msg {
   ChangeRoute(router.Route)
+  PushRoute(String)
   ServerHealth(Result(response.Response(String), rsvp.Error))
   ServerSetupDone(Result(Bool, rsvp.Error))
   OIDCAuthenticated(Result(Bool, rsvp.Error))
@@ -61,11 +66,16 @@ pub type Msg {
   ScanDone(Result(Nil, rsvp.Error))
   ShowToast(String, toasts.ToastKind)
   DismissToast(Int)
+  ToggleLumiverseDropdown
+  ToggleUserDropdown
   SearchInput(String)
+  SearchTimerSet(global.TimerID)
+  DoSearchPreview(String)
   SearchSubmit
   GotSearchPreview(Result(List(search_api.SeriesSearchResult), rsvp.Error))
   GotPreferences(Result(Int, rsvp.Error))
   SetAdultContent(Bool)
+  ToggleAdultContent
 }
 
 pub fn main() {
@@ -121,7 +131,10 @@ fn init(_) {
       next_toast_id: 0,
       search_query: "",
       search_preview: option.None,
+      search_timeout: option.None,
       max_age_rating: 8,
+      lumiverse_dropdown_open: False,
+      user_dropdown_open: False,
     ),
     effect.batch([
       modem.init(fn(url) { router.uri_to_route(url) |> ChangeRoute }),
@@ -136,6 +149,17 @@ fn init(_) {
 
 fn update(m: Model, msg: Msg) {
   case msg {
+    ToggleUserDropdown -> #(
+      Model(..m, user_dropdown_open: m.user_dropdown_open |> bool.negate),
+      effect.none(),
+    )
+    ToggleLumiverseDropdown -> #(
+      Model(
+        ..m,
+        lumiverse_dropdown_open: m.lumiverse_dropdown_open |> bool.negate,
+      ),
+      effect.none(),
+    )
     OIDCLinkCleared(_) -> #(m, effect.none())
     ChangeRoute(route) ->
       case route {
@@ -151,6 +175,10 @@ fn update(m: Model, msg: Msg) {
         }
         _ -> #(Model(..m, route:, search_preview: option.None), effect.none())
       }
+    PushRoute(route) -> #(
+      Model(..m, user_dropdown_open: False, lumiverse_dropdown_open: False),
+      modem.push(route, option.None, option.None),
+    )
     ServerHealth(Ok(_)) -> #(
       Model(..m, connecting: False),
       api.setup_done(ServerSetupDone),
@@ -221,15 +249,38 @@ fn update(m: Model, msg: Msg) {
       Model(..m, toasts: list.filter(m.toasts, fn(t) { t.id != id })),
       effect.none(),
     )
-
     SearchInput(query) -> {
-      let eff = case string.length(query) > 1 {
-        True -> search_api.search(query, GotSearchPreview)
-        False -> effect.none()
+      let clear_eff = case m.search_timeout {
+        option.Some(tid) -> effect.from(fn(_) { global.clear_timeout(tid) })
+        option.None -> effect.none()
       }
-      #(Model(..m, search_query: query, search_preview: option.None), eff)
+      let debounce_eff = case string.length(query) > 1 {
+        False -> effect.none()
+        True ->
+          effect.from(fn(dispatch) {
+            let tid =
+              global.set_timeout(300, fn() { dispatch(DoSearchPreview(query)) })
+            dispatch(SearchTimerSet(tid))
+          })
+      }
+      #(
+        Model(
+          ..m,
+          search_query: query,
+          search_preview: option.None,
+          search_timeout: option.None,
+        ),
+        effect.batch([clear_eff, debounce_eff]),
+      )
     }
-
+    SearchTimerSet(tid) -> #(
+      Model(..m, search_timeout: option.Some(tid)),
+      effect.none(),
+    )
+    DoSearchPreview(query) -> #(
+      Model(..m, search_timeout: option.None),
+      search_api.search(query, GotSearchPreview),
+    )
     SearchSubmit -> #(
       m,
       modem.push(
@@ -238,24 +289,19 @@ fn update(m: Model, msg: Msg) {
         option.None,
       ),
     )
-
     GotSearchPreview(Ok(results)) -> #(
       Model(..m, search_preview: option.Some(results)),
       effect.none(),
     )
-
     GotSearchPreview(Error(_)) -> #(
       Model(..m, search_preview: option.None),
       effect.none(),
     )
-
     GotPreferences(Ok(rating)) -> #(
       Model(..m, max_age_rating: rating),
       effect.none(),
     )
-
     GotPreferences(Error(_)) -> #(m, effect.none())
-
     SetAdultContent(enabled) -> {
       let rating =
         case enabled {
@@ -263,6 +309,14 @@ fn update(m: Model, msg: Msg) {
           False -> series_api.Teen
         }
         |> series_api.age_rating_to_int
+      #(m, lumiverse_api.set_preferences(rating, GotPreferences))
+    }
+    ToggleAdultContent -> {
+      let new_value = case m.max_age_rating {
+        13 -> series_api.Teen
+        _ -> series_api.AdultsOnly
+      }
+      let rating = new_value |> series_api.age_rating_to_int
       #(m, lumiverse_api.set_preferences(rating, GotPreferences))
     }
   }
@@ -274,370 +328,320 @@ fn view(m: Model) {
     [
       toasts.toast_overlay(m.toasts, DismissToast),
       case m.connecting {
-        True ->
+        True -> view_connecting()
+        False -> view_routed(m)
+      },
+    ],
+  )
+}
+
+fn view_connecting() {
+  html.div(
+    [attribute.class("w-screen h-screen flex items-center justify-center")],
+    [
+      html.i(
+        [
+          attribute.class(
+            "ph ph-[circle-notch] animate-spin text-4xl text-zinc-400",
+          ),
+        ],
+        [],
+      ),
+    ],
+  )
+}
+
+fn view_routed(m: Model) {
+  case m.route {
+    router.Login -> login.element()
+    router.Setup -> setup.element()
+    route ->
+      case localstorage.read("user") {
+        Error(_) -> element.none()
+        Ok(_) -> {
+          let acc = account.get()
           html.div(
             [
-              attribute.class(
-                "w-screen h-screen flex items-center justify-center",
-              ),
+              attribute.class(case route {
+                router.All -> "w-full h-dvh flex flex-col"
+                _ -> "w-full min-h-screen flex flex-col"
+              }),
             ],
-            [
-              html.i(
-                [
-                  attribute.class(
-                    "ph ph-circle-notch animate-spin text-4xl text-zinc-400",
-                  ),
-                ],
-                [],
-              ),
-            ],
+            [view_nav(m, route, acc), view_main(route, acc)],
           )
-        False ->
-          case m.route {
-            router.Login -> login.element()
-            router.Setup -> setup.element()
-            route ->
-              case localstorage.read("user") {
-                Error(_) -> element.none()
-                Ok(_) -> {
-                  let acc = account.get()
-                  html.div(
-                    [
-                      attribute.class(case route {
-                        router.All -> "w-full h-dvh flex flex-col"
-                        _ -> "w-full min-h-screen flex flex-col"
-                      }),
-                    ],
-                    [
-                      html.nav(
-                        [
-                          attribute.class(
-                            "z-50 bg-zinc-950/85 backdrop-blur-xl border-b border-zinc-600",
-                          ),
-                          case route {
-                            router.Reader(_) -> attribute.none()
-                            _ -> attribute.class("sticky top-0 left-0 right-0")
-                          },
-                        ],
-                        [
-                          html.div(
-                            [
-                              attribute.class(
-                                "flex flex-wrap items-center justify-between p-4",
-                              ),
-                            ],
-                            [
-                              html.div(
-                                [attribute.class("flex items-center gap-4")],
-                                [
-                                  html.a([attribute.href("/")], [
-                                    html.span(
-                                      [
-                                        attribute.class(
-                                          "self-center text-2xl font-extrabold flex gap-2",
-                                        ),
-                                      ],
-                                      [
-                                        element.text("Lumiverse"),
-                                      ],
-                                    ),
-                                  ]),
-                                  html.a(
-                                    [
-                                      attribute.href("/all"),
-                                    ],
-                                    [
-                                      button.icon_label(
-                                        "ph ph-books text-lg",
-                                        "Browse",
-                                        [button.secondary()],
-                                      ),
-                                    ],
-                                  ),
-                                  html.div(
-                                    [
-                                      attribute.class(
-                                        "relative hidden md:flex items-center group",
-                                      ),
-                                    ],
-                                    [
-                                      html.input([
-                                        attribute.class(
-                                          "bg-zinc-800 rounded-full px-5 py-2.5 text-xs text-zinc-200 outline-none focus:ring-1 focus:ring-violet-500 placeholder-zinc-500 w-48",
-                                        ),
-                                        attribute.attribute(
-                                          "placeholder",
-                                          "Search...",
-                                        ),
-                                        attribute.value(m.search_query),
-                                        event.on_input(SearchInput),
-                                        event.on("keydown", {
-                                          use key <- decode.field(
-                                            "key",
-                                            decode.string,
-                                          )
-                                          case key {
-                                            "Enter" ->
-                                              decode.success(SearchSubmit)
-                                            _ ->
-                                              decode.failure(
-                                                SearchSubmit,
-                                                "not enter",
-                                              )
-                                          }
-                                        }),
-                                      ]),
-                                      case m.search_preview {
-                                        option.None -> element.none()
-                                        option.Some([]) -> element.none()
-                                        option.Some(results) -> {
-                                          let user = account.get()
-                                          html.div(
-                                            [
-                                              attribute.class(
-                                                "invisible group-focus-within:visible absolute top-full left-0 mt-1 w-full min-w-72 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden",
-                                              ),
-                                            ],
-                                            list.append(
-                                              list.map(
-                                                list.take(results, 5),
-                                                fn(r) {
-                                                  let cover_url =
-                                                    image_url.series_cover(
-                                                      r.series_id,
-                                                      account.image_key(user),
-                                                    )
-                                                  html.a(
-                                                    [
-                                                      attribute.href(
-                                                        "/series/"
-                                                        <> int.to_string(
-                                                          r.series_id,
-                                                        ),
-                                                      ),
-                                                      attribute.class(
-                                                        "flex items-center gap-3 px-3 py-2 hover:bg-zinc-800 transition",
-                                                      ),
-                                                    ],
-                                                    [
-                                                      html.img([
-                                                        attribute.src(cover_url),
-                                                        attribute.class(
-                                                          "w-8 h-12 object-cover rounded shrink-0",
-                                                        ),
-                                                      ]),
-                                                      html.span(
-                                                        [
-                                                          attribute.class(
-                                                            "text-sm text-zinc-200 truncate",
-                                                          ),
-                                                        ],
-                                                        [element.text(r.name)],
-                                                      ),
-                                                    ],
-                                                  )
-                                                },
-                                              ),
-                                              [
-                                                html.a(
-                                                  [
-                                                    attribute.href(
-                                                      "/search?q="
-                                                      <> uri.percent_encode(
-                                                        m.search_query,
-                                                      ),
-                                                    ),
-                                                    attribute.class(
-                                                      "flex items-center justify-center px-3 py-2 text-sm text-violet-400 hover:bg-zinc-800 transition border-t border-zinc-700",
-                                                    ),
-                                                  ],
-                                                  [
-                                                    element.text(
-                                                      "See all results →",
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                          )
-                                        }
-                                      },
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              html.div(
-                                [attribute.class("flex items-center gap-3")],
-                                [
-                                  html.div([attribute.class("md:hidden")], [
-                                    button.icon_link(
-                                      "ph ph-magnifying-glass text-3xl",
-                                      "/search",
-                                      [button.ghost_inverse()],
-                                    ),
-                                  ]),
-                                  case
-                                    acc.roles |> list.contains(account.Admin)
-                                  {
-                                    False -> element.none()
-                                    True ->
-                                      button.icon(
-                                        "ph ph-arrow-clockwise text-3xl",
-                                        [
-                                          event.on_click(ScanAll),
-                                          button.ghost_inverse(),
-                                        ],
-                                      )
-                                  },
-                                  case
-                                    acc.roles |> list.contains(account.Admin)
-                                  {
-                                    False -> element.none()
-                                    True ->
-                                      button.icon_link(
-                                        "ph ph-gear text-3xl",
-                                        "/settings",
-                                        [button.ghost_inverse()],
-                                      )
-                                  },
-                                  html.div([attribute.class("relative group")], [
-                                    html.button(
-                                      [
-                                        attribute.class(
-                                          "flex justify-center items-center gap-2 text-sm font-semibold text-zinc-100 hover:text-violet-400 focus:outline-none border-none bg-transparent",
-                                        ),
-                                      ],
-                                      [
-                                        html.i(
-                                          [
-                                            attribute.class(
-                                              "ph ph-user-circle text-3xl",
-                                            ),
-                                          ],
-                                          [],
-                                        ),
-                                        element.text(acc.username),
-                                        html.i(
-                                          [attribute.class("ph ph-caret-down")],
-                                          [],
-                                        ),
-                                      ],
-                                    ),
-                                    html.div(
-                                      [
-                                        attribute.class(
-                                          "invisible absolute right-0 top-full mt-2 min-w-44 rounded-md border border-zinc-700 bg-zinc-900 p-1 transition group-focus-within:visible group-active:visible",
-                                        ),
-                                      ],
-                                      [
-                                        html.label(
-                                          [
-                                            attribute.class(
-                                              "flex items-center justify-between rounded px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800 cursor-pointer select-none",
-                                            ),
-                                          ],
-                                          [
-                                            element.text("Adult Content"),
-                                            html.div(
-                                              [
-                                                attribute.class(
-                                                  "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors "
-                                                  <> case
-                                                    m.max_age_rating >= 18
-                                                  {
-                                                    True -> "bg-violet-500"
-                                                    False -> "bg-zinc-600"
-                                                  },
-                                                ),
-                                              ],
-                                              [
-                                                html.input([
-                                                  attribute.type_("checkbox"),
-                                                  attribute.checked(
-                                                    m.max_age_rating
-                                                    == series_api.AdultsOnly
-                                                    |> series_api.age_rating_to_int,
-                                                  ),
-                                                  attribute.class("sr-only"),
-                                                  event.on_check(
-                                                    SetAdultContent,
-                                                  ),
-                                                ]),
-                                                html.span(
-                                                  [
-                                                    attribute.class(
-                                                      "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform "
-                                                      <> case
-                                                        m.max_age_rating
-                                                        == series_api.AdultsOnly
-                                                        |> series_api.age_rating_to_int
-                                                      {
-                                                        True ->
-                                                          "translate-x-4.5"
-                                                        False ->
-                                                          "translate-x-0.5"
-                                                      },
-                                                    ),
-                                                  ],
-                                                  [],
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                        html.a(
-                                          [
-                                            attribute.href("/preferences"),
-                                            attribute.class(
-                                              "block rounded px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800",
-                                            ),
-                                          ],
-                                          [element.text("Preferences")],
-                                        ),
-                                        html.a(
-                                          [
-                                            attribute.href("/signout"),
-                                            attribute.class(
-                                              "block rounded px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800",
-                                            ),
-                                          ],
-                                          [element.text("Logout")],
-                                        ),
-                                      ],
-                                    ),
-                                  ]),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      case route {
-                        router.Home -> home.element()
-                        router.All -> all.element([])
-                        router.Preferences -> preferences.element()
-                        router.Settings ->
-                          settings.element([toasts.on_toast(ShowToast)])
-                        router.Series(series_id) ->
-                          series.element([
-                            series.id(series_id),
-                            attribute.property(
-                              "admin",
-                              json.bool(
-                                acc.roles |> list.contains(account.Admin),
-                              ),
-                            ),
-                          ])
-                        router.Reader(id) -> reader.element([reader.id(id)])
-                        router.Search(params) ->
-                          search.element([search.query(params.query)])
-                        _ -> error.page(error.NotFound)
-                      },
-                    ],
-                  )
-                }
-              }
-          }
+        }
+      }
+  }
+}
+
+fn view_nav(m: Model, route: router.Route, acc: account.Account) {
+  html.nav(
+    [
+      attribute.class(
+        "z-50 bg-zinc-950/85 backdrop-blur-xl border-b border-zinc-600",
+      ),
+      case route {
+        router.Reader(_) -> attribute.none()
+        _ -> attribute.class("sticky top-0 left-0 right-0")
+      },
+    ],
+    [
+      html.div([attribute.class("flex items-center justify-between p-4")], [
+        view_nav_left(m),
+        view_nav_right(m, acc),
+      ]),
+    ],
+  )
+}
+
+fn view_nav_left(m: Model) {
+  html.div([attribute.class("flex items-center gap-4")], [
+    dropdown.dropdown_aligned(
+      m.lumiverse_dropdown_open,
+      ToggleLumiverseDropdown,
+      html.span(
+        [
+          attribute.class(
+            "font-[Poppins,sans-serif] hover:bg-zinc-900 py-1 px-2 rounded-xl self-center text-xl font-black flex gap-2 items-end",
+          ),
+        ],
+        [
+          html.img([
+            attribute.src("/lumiverse.svg"),
+            attribute.alt("Lumiverse logo"),
+            attribute.class("w-8 h-8 rounded"),
+          ]),
+          html.span([attribute.class("inline-flex items-center gap-2")], [
+            html.span([], [
+              html.span([attribute.class("text-violet-400")], [
+                element.text("Lumi"),
+              ]),
+              element.text("verse"),
+              html.span([attribute.class("text-2xl text-violet-400")], [
+                element.text("."),
+              ]),
+            ]),
+            html.i([attribute.class("ph ph-[caret-down]")], []),
+          ]),
+        ],
+      ),
+      [
+        dropdown.MenuItem(
+          "Home",
+          option.None,
+          PushRoute("/"),
+          option.Some("ph ph-[house]"),
+          False,
+        ),
+        dropdown.MenuItem(
+          "Browse",
+          option.None,
+          PushRoute("/all"),
+          option.Some("ph ph-[books]"),
+          False,
+        ),
+        dropdown.MenuItem(
+          "Search",
+          option.None,
+          PushRoute("/search"),
+          option.Some("ph ph-[magnifying-glass]"),
+          False,
+        ),
+      ],
+      dropdown.AlignLeft,
+    ),
+    view_search(m),
+  ])
+}
+
+fn view_search(m: Model) {
+  html.div([attribute.class("relative hidden md:flex items-center group")], [
+    html.input([
+      attribute.class(
+        "bg-zinc-800 rounded-full px-5 py-2.5 text-xs text-zinc-200 outline-none focus:ring-1 focus:ring-violet-500 placeholder-zinc-400 w-48",
+      ),
+      attribute.attribute("placeholder", "Search..."),
+      attribute.value(m.search_query),
+      event.on_input(SearchInput),
+      event.on("keydown", {
+        use key <- decode.field("key", decode.string)
+        case key {
+          "Enter" -> decode.success(SearchSubmit)
+          _ -> decode.failure(SearchSubmit, "not enter")
+        }
+      }),
+    ]),
+    view_search_preview(m),
+  ])
+}
+
+fn view_search_preview(m: Model) {
+  case m.search_preview {
+    option.None -> element.none()
+    option.Some([]) -> element.none()
+    option.Some(results) -> {
+      let user = account.get()
+      html.div(
+        [
+          attribute.class(
+            "invisible group-focus-within:visible absolute top-full left-0 mt-1 w-full min-w-72 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden",
+          ),
+        ],
+        list.append(
+          list.map(list.take(results, 5), fn(r) {
+            let cover_url =
+              image_url.series_cover_w(
+                r.series_id,
+                account.image_key(user),
+                100,
+              )
+            html.a(
+              [
+                attribute.href("/series/" <> int.to_string(r.series_id)),
+                attribute.class(
+                  "flex items-center gap-3 px-3 py-2 hover:bg-zinc-800 transition",
+                ),
+              ],
+              [
+                html.img([
+                  attribute.src(cover_url),
+                  attribute.alt(r.name),
+                  attribute.class("w-8 h-12 object-cover rounded shrink-0"),
+                ]),
+                html.span([attribute.class("text-sm text-zinc-200 truncate")], [
+                  element.text(r.name),
+                ]),
+              ],
+            )
+          }),
+          [
+            html.a(
+              [
+                attribute.href(
+                  "/search?q=" <> uri.percent_encode(m.search_query),
+                ),
+                attribute.class(
+                  "flex items-center justify-center px-3 py-2 text-sm text-violet-400 hover:bg-zinc-800 transition border-t border-zinc-700",
+                ),
+              ],
+              [element.text("See all results →")],
+            ),
+          ],
+        ),
+      )
+    }
+  }
+}
+
+fn view_nav_right(m: Model, acc: account.Account) {
+  let is_admin = acc.roles |> list.contains(account.Admin)
+  let is_adult =
+    m.max_age_rating == series_api.AdultsOnly |> series_api.age_rating_to_int
+
+  html.div([attribute.class("flex items-center gap-3")], [
+    dropdown.dropdown(
+      m.user_dropdown_open,
+      ToggleUserDropdown,
+      html.button(
+        [
+          attribute.class(
+            "flex justify-center items-center gap-2 text-sm font-semibold text-zinc-100 hover:text-violet-400 focus:outline-none border-none bg-transparent",
+          ),
+          attribute.attribute("aria-label", acc.username <> " menu"),
+        ],
+        [
+          html.i([attribute.class("ph ph-[user-circle] text-3xl")], []),
+          html.span([attribute.class("hidden sm:inline")], [
+            element.text(acc.username),
+          ]),
+          html.i([attribute.class("ph ph-[caret-down]")], []),
+        ],
+      ),
+      [
+        case is_admin {
+          False -> dropdown.MenuNone
+          True ->
+            dropdown.MenuItem(
+              "Refresh Libraries",
+              option.None,
+              ScanAll,
+              option.Some("ph ph-[arrow-clockwise]"),
+              False,
+            )
+        },
+        case is_admin {
+          False -> dropdown.MenuNone
+          True ->
+            dropdown.MenuItem(
+              "Settings",
+              option.None,
+              PushRoute("/settings"),
+              option.Some("ph ph-[gear]"),
+              False,
+            )
+        },
+        case is_admin {
+          False -> dropdown.MenuNone
+          True -> dropdown.MenuDivider
+        },
+        ..user_dropdown_items(is_adult)
+      ],
+    ),
+  ])
+}
+
+fn user_dropdown_items(is_adult: Bool) {
+  [
+    dropdown.MenuToggle(
+      "Adult Content",
+      option.None,
+      ToggleAdultContent,
+      option.Some("ph ph-[prohibit]"),
+      is_adult,
+    ),
+    dropdown.MenuDivider,
+    dropdown.MenuItem(
+      "Preferences",
+      option.None,
+      ChangeRoute(router.Preferences),
+      option.Some("ph ph-[gear]"),
+      False,
+    ),
+    dropdown.MenuItem(
+      "Logout",
+      option.None,
+      ChangeRoute(router.Logout),
+      option.Some("ph ph-[sign-out]"),
+      False,
+    ),
+  ]
+}
+
+fn view_main(route: router.Route, acc: account.Account) {
+  html.main(
+    [
+      attribute.class(case route {
+        router.All -> "flex flex-col flex-1 min-h-0 overflow-hidden"
+        _ -> "flex flex-col flex-1"
+      }),
+    ],
+    [
+      case route {
+        router.Home -> home.element()
+        router.All -> all.element([])
+        router.Preferences -> preferences.element()
+        router.Settings -> settings.element([toasts.on_toast(ShowToast)])
+        router.Series(series_id) ->
+          series.element([
+            series.id(series_id),
+            attribute.property(
+              "admin",
+              json.bool(acc.roles |> list.contains(account.Admin)),
+            ),
+          ])
+        router.Reader(id) -> reader.element([reader.id(id)])
+        router.Search(params) -> search.element([search.query(params.query)])
+        _ -> error.page(error.NotFound)
       },
     ],
   )

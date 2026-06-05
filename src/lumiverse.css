@@ -1,4 +1,21 @@
 @import "tailwindcss";
+@plugin 'phosphor-icons-tailwindcss';
+
+/* Metric-matched fallback for Poppins — eliminates CLS from font-display:swap
+   by making Arial take the same line height and character width before the
+   custom font loads. Values derived from Poppins' UPM/ascender/descender. */
+@font-face {
+  font-family: 'PoppinsFallback';
+  src: local('Arial');
+  ascent-override: 93%;
+  descent-override: 31%;
+  line-gap-override: 0%;
+  size-adjust: 112%;
+}
+
+html {
+  font-family: 'Poppins', 'PoppinsFallback', sans-serif;
+}
 
 @keyframes toast-in {
   from {

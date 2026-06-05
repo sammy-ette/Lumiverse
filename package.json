@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "oidc-client-ts": "^3.3.0"
+    "phosphor-icons-tailwindcss": "^1.2.2"
   }
 }

@@ -21,6 +21,7 @@ pub fn card(srs: series.SeriesMinimal) {
             srs.id,
             user |> account.image_key,
           )),
+          attribute.alt(""),
           attribute.class(
             "rounded-lg bg-zinc-800 w-full object-cover sm:h-72 h-44 group-hover:brightness-75 transition-all duration-200",
           ),
@@ -55,6 +56,7 @@ pub fn grid_card(srs: series.SeriesMinimal) {
             srs.id,
             user |> account.image_key,
           )),
+          attribute.alt(""),
           attribute.class(
             "rounded-lg bg-zinc-800 w-full object-cover aspect-[2/3] group-hover:brightness-75 transition-all duration-200",
           ),
@@ -79,6 +81,20 @@ pub fn cover_image(
   let user = account.get()
   html.img([
     attribute.src(image_url.series_cover(srs.id, user |> account.image_key)),
+    attribute.alt(srs.name),
+    ..attrs
+  ])
+}
+
+pub fn cover_image_w(
+  srs: series.SeriesMinimal,
+  width: Int,
+  attrs: List(attribute.Attribute(a)),
+) {
+  let user = account.get()
+  html.img([
+    attribute.src(image_url.series_cover_w(srs.id, user |> account.image_key, width)),
+    attribute.alt(srs.name),
     ..attrs
   ])
 }

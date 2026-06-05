@@ -98,13 +98,10 @@ pub fn list_with_function(
 pub fn single(tag: series.Tag, attrs: List(attribute.Attribute(a))) {
   case classify(tag.title) {
     StaffPick ->
-      element(
-        [attribute.class("capitalize bg-violet-500 text-white gap-1"), ..attrs],
-        [
-          html.i([attribute.class("ph-fill ph-star")], []),
-          element.text(tag.title),
-        ],
-      )
+      element([attribute.class("capitalize gap-1"), color(tag.title), ..attrs], [
+        html.i([attribute.class("ph ph-[star--fill]")], []),
+        element.text(tag.title),
+      ])
     _ ->
       simple(tag.title |> string.capitalise, [
         attribute.class("capitalize"),
@@ -126,7 +123,7 @@ pub fn element(
     [
       attribute.class(tag_appearance),
       attribute.class(
-        "flex relative group h-fit self-center items-center justify-center rounded-full py-0.5 px-2 select-none",
+        "flex relative group h-fit self-center items-center justify-center rounded-full py-0.5 px-2 select-none border",
       ),
       ..attrs
     ],
@@ -137,7 +134,7 @@ pub fn element(
 pub fn included_style(title: String) -> attribute.Attribute(a) {
   case classify(title) {
     Normal -> attribute.class("bg-zinc-600 text-white")
-    StaffPick -> attribute.class("bg-violet-500 text-white brightness-110")
+    StaffPick -> attribute.class("bg-violet-600 text-white brightness-110")
     Special -> attribute.class("bg-sky-800 text-sky-100 brightness-110")
     Explicit -> attribute.class("bg-red-800 text-red-100 brightness-110")
     Beware -> attribute.class("bg-pink-800 text-pink-100 brightness-110")
@@ -150,7 +147,7 @@ pub fn included_style(title: String) -> attribute.Attribute(a) {
 
 pub fn excluded_style(title: String) -> attribute.Attribute(a) {
   case classify(title) {
-    Normal -> attribute.class("bg-transparent text-zinc-500")
+    Normal -> attribute.class("bg-transparent text-zinc-400")
     StaffPick -> attribute.class("bg-transparent text-violet-400/70")
     Special -> attribute.class("bg-transparent text-sky-400/70")
     Explicit -> attribute.class("bg-transparent text-red-400/70")
@@ -186,15 +183,15 @@ pub fn dot_color(title: String) -> String {
 
 pub fn color(title: String) -> attribute.Attribute(a) {
   case classify(title) {
-    StaffPick -> attribute.class("bg-violet-500 text-white")
-    Special -> attribute.class("bg-sky-950/60 text-sky-400")
-    Explicit -> attribute.class("bg-red-950/60 text-red-400")
-    Beware -> attribute.class("bg-pink-950/60 text-pink-400")
+    StaffPick -> attribute.class("bg-transparent text-amber-300")
+    Special -> attribute.class("bg-sky-950/80 text-sky-400 border-transparent")
+    Explicit -> attribute.class("bg-red-950/80 text-red-400 border-transparent")
+    Beware -> attribute.class("bg-pink-950/80 text-pink-400 border-transparent")
     Lgbtq ->
       attribute.class(
-        "[background:linear-gradient(to_right,#ef4444cc,#f97316cc,#eab308cc,#22c55ecc,#3b82f6cc,#8b5cf6cc)] text-white",
+        "[background:linear-gradient(to_right,#ef4444cc,#f97316cc,#eab308cc,#22c55ecc,#3b82f6cc,#8b5cf6cc)] text-white border-transparent",
       )
-    Normal -> attribute.class("bg-zinc-800 text-zinc-400")
+    Normal -> attribute.class("bg-zinc-800 text-zinc-400 border-transparent")
   }
 }
 

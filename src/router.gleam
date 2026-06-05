@@ -24,11 +24,6 @@ pub type Route {
   Upload
 }
 
-// Update Function with Routing
-pub type Msg {
-  ChangeRoute(route: Route)
-}
-
 pub fn uri_to_route(uri: uri.Uri) -> Route {
   // modem sometimes gives us a uri that doesnt have the query
   // in the query field, but instead appends it to the path
@@ -44,7 +39,7 @@ pub fn uri_to_route(uri: uri.Uri) -> Route {
   }
 
   let router = fn(path: String) {
-    case echo path {
+    case path {
       "/" | "" -> Home
       "/setup" -> Setup
       "/settings" -> Settings

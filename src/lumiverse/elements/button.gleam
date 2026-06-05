@@ -26,6 +26,7 @@ pub fn button(
 
 pub fn icon(
   icon_class: String,
+  aria_label: String,
   attrs: List(attribute.Attribute(msg)),
 ) -> element.Element(msg) {
   render(
@@ -35,21 +36,33 @@ pub fn icon(
         [],
       ),
     ],
-    [attribute.class("inline-flex items-center justify-center"), ..attrs],
+    [
+      attribute.class("inline-flex items-center justify-center"),
+      attribute.attribute("aria-label", aria_label),
+      ..attrs
+    ],
   )
 }
 
 pub fn icon_link(
   icon_class: String,
+  aria_label: String,
   href: String,
   attrs: List(attribute.Attribute(msg)),
 ) -> element.Element(msg) {
   html.a(
     [
       attribute.class("inline-flex items-center justify-center"),
+      attribute.attribute("aria-label", aria_label),
       attribute.href(href),
+      ..attrs
     ],
-    [icon(icon_class, attrs)],
+    [
+      html.i(
+        [attribute.class("leading-none text-2xl"), attribute.class(icon_class)],
+        [],
+      ),
+    ],
   )
 }
 
@@ -69,7 +82,7 @@ pub fn icon_label(
 
 pub fn primary() -> attribute.Attribute(msg) {
   attribute.class(
-    "px-4 py-2 bg-violet-500 hover:not-disabled:bg-violet-400 text-white",
+    "px-4 py-2 bg-violet-600 hover:not-disabled:bg-violet-500 text-white",
   )
 }
 
