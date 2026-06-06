@@ -230,8 +230,8 @@ pub type SortOptions {
 fn sort_options_to_json(sort_options: SortOptions) -> json.Json {
   let SortOptions(sort_field:, ascending:) = sort_options
   json.object([
-    #("sort_field", sort_field_to_json(sort_field)),
-    #("ascending", json.bool(ascending)),
+    #("sortField", sort_field_to_json(sort_field)),
+    #("isAscending", json.bool(ascending)),
   ])
 }
 
