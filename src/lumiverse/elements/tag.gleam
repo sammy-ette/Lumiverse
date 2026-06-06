@@ -8,7 +8,7 @@ import lustre/attribute
 import lustre/element
 import lustre/element/html
 
-pub const special = ["doujinshi", "uncensored", "special-test-tag"]
+pub const special = ["doujinshi", "uncensored", "manhwa", "special-test-tag"]
 
 pub const explicit = [
   "hentai", "sexual violence", "gore", "erotica", "borderline h", "boobjob",
