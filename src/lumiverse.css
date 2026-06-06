@@ -27,3 +27,30 @@ html {
     transform: translateX(0);
   }
 }
+
+@keyframes enter-from-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes enter-from-top {
+  from {
+    opacity: 0;
+    transform: translateY(-0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@theme {
+  --animate-enter-from-bottom: enter-from-bottom 0.15s ease-out;
+  --animate-enter-from-top: enter-from-top 0.15s ease-out 0.5s backwards;
+}
