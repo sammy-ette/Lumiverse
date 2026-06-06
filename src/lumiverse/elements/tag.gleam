@@ -123,7 +123,7 @@ pub fn element(
     [
       attribute.class(tag_appearance),
       attribute.class(
-        "flex relative group h-fit self-center items-center justify-center rounded-full py-0.5 px-2 select-none border",
+        "flex relative group h-fit self-center items-center justify-center rounded-full py-0.5 px-2 select-none",
       ),
       ..attrs
     ],
@@ -183,15 +183,19 @@ pub fn dot_color(title: String) -> String {
 
 pub fn color(title: String) -> attribute.Attribute(a) {
   case classify(title) {
-    StaffPick -> attribute.class("bg-transparent text-amber-300")
-    Special -> attribute.class("bg-sky-950/80 text-sky-400 border-transparent")
-    Explicit -> attribute.class("bg-red-950/80 text-red-400 border-transparent")
-    Beware -> attribute.class("bg-pink-950/80 text-pink-400 border-transparent")
+    StaffPick -> attribute.class("bg-transparent border text-amber-300")
+    Special ->
+      attribute.class("bg-sky-950/80 text-sky-400 border border-transparent")
+    Explicit ->
+      attribute.class("bg-red-950/80 text-red-400 border border-transparent")
+    Beware ->
+      attribute.class("bg-pink-950/80 text-pink-400 border border-transparent")
     Lgbtq ->
       attribute.class(
-        "[background:linear-gradient(to_right,#ef4444cc,#f97316cc,#eab308cc,#22c55ecc,#3b82f6cc,#8b5cf6cc)] text-white border-transparent",
+        "[background:linear-gradient(to_right,#ef4444cc,#f97316cc,#eab308cc,#22c55ecc,#3b82f6cc,#8b5cf6cc)] text-white border border-transparent",
       )
-    Normal -> attribute.class("bg-zinc-800 text-zinc-400 border-transparent")
+    Normal ->
+      attribute.class("bg-zinc-800 text-zinc-400 border border-transparent")
   }
 }
 
