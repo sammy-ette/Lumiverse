@@ -368,7 +368,7 @@ fn control_bar(m: Model) {
               <> case m.sort_field {
               filter.SortName -> "Name"
               filter.LastChapterAdded -> "Last Updated"
-              filter.CreatedDate -> "Created At"
+              filter.CreatedDate -> "Date Added"
               _ -> "Other"
             },
             [
@@ -378,23 +378,23 @@ fn control_bar(m: Model) {
           [
             dropdown.MenuItem(
               "Name",
-              option.Some("A → Z"),
+              option.None,
               SetSort(filter.SortName),
-              option.Some("ph ph-[sort-ascending]"),
+              option.Some("ph ph-[identification-badge]"),
               m.sort_field == filter.SortName,
             ),
             dropdown.MenuItem(
               "Last Updated",
-              option.Some("Newest update"),
+              option.None,
               SetSort(filter.LastChapterAdded),
-              option.Some("ph ph-[sort-descending]"),
+              option.Some("ph ph-[fire-simple]"),
               m.sort_field == filter.LastChapterAdded,
             ),
             dropdown.MenuItem(
-              "Created At",
-              option.Some("Recently added"),
+              "Date Added",
+              option.None,
               SetSort(filter.CreatedDate),
-              option.Some("ph ph-[sort-ascending]"),
+              option.Some("ph ph-[clock-clockwise]"),
               m.sort_field == filter.CreatedDate,
             ),
           ],
