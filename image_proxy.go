@@ -36,7 +36,7 @@ func initImageProxy() {
 
 	processSem = make(chan struct{}, runtime.NumCPU()*2)
 
-	imageEncodeEffort = 2
+	imageEncodeEffort = 4
 	if s := os.Getenv("IMAGE_ENCODE_EFFORT"); s != "" {
 		if n, err := strconv.Atoi(s); err == nil && n >= 0 && n <= 10 {
 			imageEncodeEffort = n
@@ -57,9 +57,9 @@ func newImageCache() fiber.Handler {
 	return cache.New(cache.Config{
 		ExpirationGenerator: func(c fiber.Ctx, cfg *cache.Config) time.Duration {
 			if strings.HasPrefix(c.Path(), "/api/reader/") {
-				return 5 * time.Minute
+				return 2 * time.Hour
 			}
-			return 10 * time.Minute
+			return 30 * time.Minute
 		},
 		KeyGenerator: func(c fiber.Ctx) string {
 			params := c.Queries()
@@ -118,7 +118,7 @@ func imageHandler(c fiber.Ctx) error {
 	// Passthrough — pipe Kavita's response body directly, no intermediate buffer.
 	if w == 0 && q == 0 && !optimizeDelivery {
 		c.Set("Content-Type", sourceContentType)
-		c.Set("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400")
+		c.Set("Cache-Control", "public, max-age=2592000, stale-while-revalidate=86400")
 		return c.SendStream(resp.Body)
 	}
 
@@ -180,7 +180,7 @@ func imageHandler(c fiber.Ctx) error {
 	}
 
 	c.Set("Content-Type", outContentType)
-	c.Set("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400")
+	c.Set("Cache-Control", "public, max-age=2592000, stale-while-revalidate=86400")
 	return c.Send(outBytes)
 }
 

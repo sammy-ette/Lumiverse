@@ -1,5 +1,11 @@
 *.beam
 *.ez
-build
+/build
 erl_crash.dump
-node_modules/
+/priv/static/lumiverse.*
+node_modules
+
+#Added automatically by Lustre Dev Tools
+/.lustre
+/dist
+*.db

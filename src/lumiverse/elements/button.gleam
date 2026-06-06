@@ -26,6 +26,7 @@ pub fn button(
 
 pub fn icon(
   icon_class: String,
+  aria_label: String,
   attrs: List(attribute.Attribute(msg)),
 ) -> element.Element(msg) {
   render(
@@ -35,21 +36,33 @@ pub fn icon(
         [],
       ),
     ],
-    [attribute.class("inline-flex items-center justify-center"), ..attrs],
+    [
+      attribute.class("inline-flex items-center justify-center"),
+      attribute.attribute("aria-label", aria_label),
+      ..attrs
+    ],
   )
 }
 
 pub fn icon_link(
   icon_class: String,
+  aria_label: String,
   href: String,
   attrs: List(attribute.Attribute(msg)),
 ) -> element.Element(msg) {
   html.a(
     [
       attribute.class("inline-flex items-center justify-center"),
+      attribute.attribute("aria-label", aria_label),
       attribute.href(href),
+      ..attrs
     ],
-    [icon(icon_class, attrs)],
+    [
+      html.i(
+        [attribute.class("leading-none text-2xl"), attribute.class(icon_class)],
+        [],
+      ),
+    ],
   )
 }
 
@@ -60,7 +73,7 @@ pub fn icon_label(
 ) -> element.Element(msg) {
   render(
     [
-      html.i([attribute.class("leading-none " <> icon_class)], []),
+      html.i([attribute.class("leading-none text-2xl " <> icon_class)], []),
       element.text(label),
     ],
     [attribute.class("inline-flex items-center gap-1.5"), ..attrs],
@@ -69,20 +82,24 @@ pub fn icon_label(
 
 pub fn primary() -> attribute.Attribute(msg) {
   attribute.class(
-    "px-4 py-2 bg-violet-500 hover:not-disabled:bg-violet-400 text-white",
+    "px-4 py-2 bg-violet-600 hover:not-disabled:bg-violet-500 text-white",
   )
 }
 
 pub fn secondary() -> attribute.Attribute(msg) {
-  attribute.class("px-4 py-2 bg-zinc-800 hover:not-disabled:bg-zinc-700")
+  attribute.class("p-2.5 bg-zinc-800 hover:not-disabled:bg-zinc-700")
+}
+
+pub fn tertiary() -> attribute.Attribute(msg) {
+  attribute.class("p-2 border border-zinc-700 hover:not-disabled:bg-zinc-700")
 }
 
 pub fn ghost() -> attribute.Attribute(msg) {
-  attribute.class("text-zinc-400 hover:text-white")
+  attribute.class("text-zinc-400 hover:not-disabled:text-white")
 }
 
 pub fn ghost_inverse() -> attribute.Attribute(msg) {
-  attribute.class("text-white hover:text-zinc-400 ")
+  attribute.class("text-white hover:not-disabled:text-zinc-400")
 }
 
 pub fn danger() -> attribute.Attribute(msg) {

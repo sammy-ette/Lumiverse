@@ -34,12 +34,12 @@ pub fn on_toast(handler: fn(String, ToastKind) -> msg) -> attribute.Attribute(ms
 
 fn render_toast(toast: Toast, on_dismiss: fn(Int) -> msg) -> element.Element(msg) {
   let #(border, icon) = case toast.kind {
-    Info -> #("border-blue-500 bg-blue-500/10", "ph ph-info text-blue-400")
+    Info -> #("border-blue-500 bg-blue-500/10", "ph ph-[info] text-blue-400")
     Warning -> #(
       "border-amber-500 bg-amber-500/10",
-      "ph ph-warning text-amber-400",
+      "ph ph-[warning] text-amber-400",
     )
-    Err -> #("border-red-500 bg-red-500/10", "ph ph-x-circle text-red-400")
+    Err -> #("border-red-500 bg-red-500/10", "ph ph-[x-circle] text-red-400")
   }
   html.div(
     [
@@ -58,7 +58,7 @@ fn render_toast(toast: Toast, on_dismiss: fn(Int) -> msg) -> element.Element(msg
           attribute.class("text-zinc-500 hover:text-white ml-2"),
           event.on_click(on_dismiss(toast.id)),
         ],
-        [html.i([attribute.class("ph ph-x")], [])],
+        [html.i([attribute.class("ph ph-[x]")], [])],
       ),
     ],
   )
@@ -75,7 +75,7 @@ pub fn toast_overlay(
       ),
     ],
     list.map(toasts, fn(t) {
-      html.div([attribute.class("pointer-events-auto w-80")], [
+      html.div([attribute.class("pointer-events-auto w-80 animate-[toast-in_0.2s_ease-out]")], [
         render_toast(t, on_dismiss),
       ])
     }),

@@ -5,7 +5,9 @@ import lustre/element/html
 
 pub fn input(attrs: List(attribute.Attribute(a))) {
   html.input([
-    attribute.class("bg-zinc-700 rounded-md p-1 text-zinc-200 outline-none"),
+    attribute.class(
+      "bg-zinc-800 rounded-md px-3 py-2 text-zinc-200 outline-none border border-zinc-700/50 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-colors",
+    ),
     ..attrs
   ])
 }

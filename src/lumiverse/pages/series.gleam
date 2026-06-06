@@ -14,7 +14,9 @@ import lumiverse/api/image_url
 import lumiverse/api/reader
 import lumiverse/api/series
 import lumiverse/elements/button
+import lumiverse/elements/series as series_element
 import lumiverse/elements/tag
+import lumiverse/pages/error
 import lustre
 import lustre/attribute
 import lustre/component
@@ -32,12 +34,14 @@ type Model {
     id: Int,
     series: option.Option(Result(series.Series, rsvp.Error)),
     details: option.Option(series.Details),
+    time_left: option.Option(series.Time),
     admin: Bool,
     show_editor: Bool,
     edit_form: form.Form(SeriesEdit),
     new_tag_input: String,
     sort_ascending: Bool,
     active_tab: Tab,
+    loading_reader: Bool,
   )
 }
 
@@ -63,10 +67,10 @@ type Msg {
   DetailsRetrieved(Result(series.Details, rsvp.Error))
   ContinuePointRetrieved(Result(reader.ContinuePoint, rsvp.Error))
   TagsRetrieved(String, Result(List(series.Tag), rsvp.Error))
+  TimeLeftRetrieved(Result(series.Time, rsvp.Error))
   MetadataUpdated(Result(Nil, rsvp.Error))
   EditSubmitted(Result(SeriesEdit, form.Form(SeriesEdit)))
   Read
-  RequestUpdate
   Admin(Bool)
   UpdateNewTagInput(String)
   SubmitNewTag
@@ -106,13 +110,15 @@ fn init(_) {
     Model(
       id: 0,
       series: option.None,
+      details: option.None,
+      time_left: option.None,
       admin: False,
       show_editor: False,
       edit_form: editor_form(),
-      details: option.None,
       new_tag_input: "",
       sort_ascending: True,
       active_tab: StorylineTab,
+      loading_reader: False,
     ),
     effect.none(),
   )
@@ -121,19 +127,17 @@ fn init(_) {
 fn update(m: Model, msg: Msg) {
   case msg {
     Admin(admin) -> #(Model(..m, admin:), effect.none())
-    SeriesID(id) -> #(
-      Model(..m, id:),
-      effect.batch([
-        series.get(id, SeriesRetrieved),
-        series.details(id, DetailsRetrieved),
-      ]),
-    )
+    SeriesID(id) -> #(Model(..m, id:), series.get(id, SeriesRetrieved))
     ShowEditor(show_editor) -> #(Model(..m, show_editor:), effect.none())
     SeriesRetrieved(Ok(srs)) -> {
       document.set_title(srs.name <> " | Lumiverse")
       #(
         Model(..m, series: option.Some(Ok(srs))),
-        series.metadata(srs.id, MetadataRetrieved),
+        effect.batch([
+          series.metadata(srs.id, MetadataRetrieved),
+          series.details(srs.id, DetailsRetrieved),
+          series.time_left(srs.id, TimeLeftRetrieved),
+        ]),
       )
     }
     SeriesRetrieved(Error(e)) -> #(
@@ -158,17 +162,25 @@ fn update(m: Model, msg: Msg) {
       effect.none(),
     )
     DetailsRetrieved(Error(_)) -> #(m, effect.none())
+    TimeLeftRetrieved(Ok(t)) -> #(
+      Model(..m, time_left: option.Some(t)),
+      effect.none(),
+    )
+    TimeLeftRetrieved(Error(_)) -> #(m, effect.none())
     Read -> {
       case m.series {
         option.Some(Ok(srs)) -> {
-          #(m, reader.continue_point(srs.id, ContinuePointRetrieved))
+          #(
+            Model(..m, loading_reader: True),
+            reader.continue_point(srs.id, ContinuePointRetrieved),
+          )
         }
         _ -> #(m, effect.none())
       }
     }
     ContinuePointRetrieved(Ok(cont_point)) -> {
       #(
-        m,
+        Model(..m, loading_reader: False),
         modem.push(
           "/read/" <> cont_point.id |> int.to_string,
           option.None,
@@ -177,7 +189,6 @@ fn update(m: Model, msg: Msg) {
       )
     }
     ContinuePointRetrieved(Error(_)) -> #(m, effect.none())
-    RequestUpdate -> #(m, effect.none())
     UpdateNewTagInput(value) -> #(
       Model(..m, new_tag_input: value),
       effect.none(),
@@ -293,15 +304,118 @@ fn update(m: Model, msg: Msg) {
 }
 
 fn view(m: Model) {
-  case m.series, m.details {
-    option.Some(Ok(series)), option.Some(details) -> {
-      case series.metadata {
-        option.None -> element.none()
-        option.Some(metadata) -> display(m, series, metadata, details)
+  case m.series {
+    option.Some(Error(_)) -> error.page(error.NotFound)
+    option.Some(Ok(srs)) ->
+      case srs.metadata, m.details {
+        option.Some(metadata), option.Some(details) ->
+          display(m, srs, metadata, details)
+        _, _ -> loading_display(option.Some(srs))
       }
-    }
-    _, _ -> element.none()
+    option.None -> loading_display(option.None)
   }
+}
+
+fn loading_display(srs: option.Option(series.Series)) {
+  let account = account.get()
+  let api_key = account |> account.image_key
+  html.div([attribute.class("font-[Poppins,sans-serif] space-y-4 relative")], [
+    html.div(
+      [
+        attribute.class(
+          "absolute -top-4 -left-4 -right-4 h-72 sm:h-80 overflow-hidden pointer-events-none",
+        ),
+      ],
+      [
+        case srs {
+          option.Some(s) ->
+            html.img([
+              attribute.class(
+                "absolute inset-0 w-full h-full object-cover blur-xl opacity-15 scale-110",
+              ),
+              attribute.src(image_url.series_cover_blur(s.id, api_key)),
+              attribute.alt(""),
+              attribute.attribute("aria-hidden", "true"),
+              attribute.attribute("fetchpriority", "low"),
+            ])
+          option.None -> element.none()
+        },
+        html.div(
+          [
+            attribute.class(
+              "absolute inset-0 bg-gradient-to-b from-zinc-950/20 to-zinc-950",
+            ),
+          ],
+          [],
+        ),
+      ],
+    ),
+    html.div(
+      [attribute.class("relative z-10 flex flex-col sm:flex-row gap-4")],
+      [
+        case srs {
+          option.Some(s) ->
+            html.img([
+              attribute.class(
+                "max-sm:self-center bg-zinc-800 rounded-lg h-64 sm:h-72 aspect-[2/3] flex-shrink-0 object-cover shadow-2xl shadow-zinc-950",
+              ),
+              attribute.src(image_url.series_cover_w(s.id, api_key, 800)),
+              attribute.attribute("fetchpriority", "high"),
+              attribute.alt(""),
+            ])
+          option.None ->
+            html.div(
+              [
+                attribute.class(
+                  "max-sm:self-center bg-zinc-800 rounded-lg h-64 sm:h-72 aspect-[2/3] flex-shrink-0 animate-pulse",
+                ),
+              ],
+              [],
+            )
+        },
+        html.div([attribute.class("flex flex-col gap-5 min-w-0 flex-1")], [
+          html.div(
+            [
+              attribute.class(
+                "h-10 sm:h-14 w-3/4 bg-zinc-800 rounded animate-pulse",
+              ),
+            ],
+            [],
+          ),
+          html.div(
+            [attribute.class("h-4 w-1/2 bg-zinc-800 rounded animate-pulse")],
+            [],
+          ),
+          html.div(
+            [attribute.class("h-3.5 w-32 bg-zinc-800 rounded animate-pulse")],
+            [],
+          ),
+          html.div(
+            [attribute.class("h-9 w-36 bg-zinc-800 rounded-lg animate-pulse")],
+            [],
+          ),
+        ]),
+      ],
+    ),
+    html.div([attribute.class("relative z-10 space-y-3 pt-2")], [
+      html.div(
+        [attribute.class("h-5 w-16 bg-zinc-800 rounded animate-pulse")],
+        [],
+      ),
+      html.div(
+        [attribute.class("h-4 w-full bg-zinc-800 rounded animate-pulse")],
+        [],
+      ),
+      html.div(
+        [attribute.class("h-4 w-5/6 bg-zinc-800 rounded animate-pulse")],
+        [],
+      ),
+      html.div(
+        [attribute.class("h-4 w-4/6 bg-zinc-800 rounded animate-pulse")],
+        [],
+      ),
+    ]),
+  ])
 }
 
 fn display(
@@ -312,351 +426,473 @@ fn display(
 ) {
   let new_time_range = date.get_time(date.now()) - 3 * { 24 * 60 * 60 * 1000 }
   let account = account.get()
-  let cover_url = image_url.series_cover(srs.id, account |> account.image_key)
+  let api_key = account |> account.image_key
+  let cover_url = image_url.series_cover_w(srs.id, api_key, 800)
+  let blur_url = image_url.series_cover_blur(srs.id, api_key)
 
   html.div(
     [
-      attribute.class("font-[Poppins,sans-serif] space-y-4"),
+      attribute.class("font-[Poppins,sans-serif] space-y-4 relative"),
     ],
     [
+      html.div(
+        [
+          attribute.class(
+            "absolute -top-4 -left-4 -right-4 h-72 sm:h-80 overflow-hidden pointer-events-none",
+          ),
+        ],
+        [
+          html.img([
+            attribute.class(
+              "absolute inset-0 w-full h-full object-cover blur-xl opacity-15 scale-110",
+            ),
+            attribute.src(blur_url),
+            attribute.attribute("aria-hidden", "true"),
+            attribute.attribute("fetchpriority", "low"),
+          ]),
+          html.div(
+            [
+              attribute.class(
+                "absolute inset-0 bg-gradient-to-b from-zinc-950/20 to-zinc-950",
+              ),
+            ],
+            [],
+          ),
+        ],
+      ),
       case m.show_editor {
         False -> element.none()
         True -> editor(m, srs, metadata)
       },
-      html.div([attribute.class("flex flex-col sm:flex-row gap-4")], [
-        html.img([
-          attribute.class(
-            "max-sm:self-center bg-zinc-800 rounded-lg h-72 flex-shrink-0 object-cover",
-          ),
-          attribute.src(cover_url),
-          attribute.rel("preload"),
-          attribute.attribute("fetchpriority", "high"),
-          attribute.attribute("as", "image"),
-          attribute.alt("Cover image for " <> srs.localized_name),
-        ]),
-        html.div([attribute.class("flex flex-col gap-5 min-w-0")], [
-          html.div([attribute.class("space-y-1")], [
-            html.span(
-              [
-                attribute.class(
-                  "flex flex-nowrap gap-2 font-['Poppins'] font-extrabold items-center",
-                ),
-              ],
-              [
-                case srs.created |> date.get_time() > new_time_range {
-                  True ->
-                    tag.simple("New!", [
-                      attribute.class(
-                        "bg-rose-600 normal-case! font-bold! text-[0.9rem]!",
-                      ),
-                    ])
-                  False -> element.none()
-                },
-                html.h1([attribute.class("text-xl sm:text-5xl")], [
-                  element.text(srs.name),
-                ]),
-              ],
+      html.div(
+        [attribute.class("relative z-10 flex flex-col sm:flex-row gap-4")],
+        [
+          html.img([
+            attribute.class(
+              "max-sm:self-center bg-zinc-800 rounded-lg h-64 sm:h-72 aspect-[2/3] flex-shrink-0 object-cover shadow-2xl shadow-zinc-950",
             ),
-            case srs.localized_name == "" {
-              False ->
-                html.h2(
-                  [
-                    attribute.class(
-                      "font-medium text-zinc-400 text-base sm:text-lg",
-                    ),
-                  ],
-                  [element.text(srs.localized_name)],
-                )
-              True -> element.none()
-            },
-            html.div([attribute.class("flex flex-col gap-1")], [
-              case metadata.release_year {
-                0 -> element.none()
-                year ->
-                  html.span([attribute.class("text-sm text-zinc-400")], [
-                    element.text(int.to_string(year)),
-                  ])
-              },
-              case metadata.language {
-                "" -> element.none()
-                lang ->
-                  html.span([attribute.class("text-sm text-zinc-400")], [
-                    element.text(lang),
-                  ])
-              },
-              case metadata.age_rating {
-                series.NotApplicable | series.UnknownRating -> element.none()
-                rating ->
-                  html.span(
+            attribute.src(cover_url),
+            attribute.rel("preload"),
+            attribute.attribute("fetchpriority", "high"),
+            attribute.attribute("as", "image"),
+            attribute.alt("Cover image for " <> srs.localized_name),
+          ]),
+          html.div([attribute.class("flex flex-col gap-5 min-w-0")], [
+            html.div([attribute.class("space-y-1")], [
+              html.span(
+                [
+                  attribute.class(
+                    "flex flex-nowrap gap-2 font-['Poppins'] font-extrabold items-center",
+                  ),
+                ],
+                [
+                  case srs.created |> date.get_time() > new_time_range {
+                    True ->
+                      tag.simple("New!", [
+                        attribute.class(
+                          "bg-rose-600 normal-case! font-bold! text-[0.9rem]!",
+                        ),
+                      ])
+                    False -> element.none()
+                  },
+                  html.h1([attribute.class("text-xl sm:text-5xl")], [
+                    element.text(srs.name),
+                  ]),
+                ],
+              ),
+              case srs.localized_name == "" {
+                False ->
+                  html.h2(
                     [
                       attribute.class(
-                        "text-xs font-bold px-1.5 py-0.5 rounded w-fit "
-                        <> age_rating_color(rating),
+                        "font-medium text-zinc-400 text-base sm:text-lg",
                       ),
                     ],
-                    [element.text(age_rating_label(rating))],
+                    [element.text(srs.localized_name)],
+                  )
+                True -> element.none()
+              },
+              html.div([attribute.class("flex items-center gap-2 flex-wrap")], [
+                case metadata.release_year == 0 && metadata.language == "" {
+                  True -> element.none()
+                  False ->
+                    html.span([attribute.class("text-sm text-zinc-400")], [
+                      element.text(
+                        [
+                          case metadata.release_year {
+                            0 -> ""
+                            year -> int.to_string(year)
+                          },
+                          case metadata.language {
+                            "" -> ""
+                            lang -> lang
+                          },
+                        ]
+                        |> list.filter(fn(s) { s != "" })
+                        |> string.join(" · "),
+                      ),
+                    ])
+                },
+                case metadata.age_rating {
+                  series.NotApplicable | series.UnknownRating -> element.none()
+                  rating -> series_element.age_rating(rating, [])
+                },
+                case m.time_left {
+                  option.None -> element.none()
+                  option.Some(t) ->
+                    html.span([attribute.class("text-sm text-zinc-400")], [
+                      element.text(case t.average_hours >. 0.0 {
+                        True ->
+                          "~"
+                          <> {
+                            t.average_hours
+                            |> float.ceiling
+                            |> float.truncate
+                            |> int.to_string
+                          }
+                          <> " hrs left"
+                        False -> int.to_string(t.page_count) <> " pages left"
+                      }),
+                    ])
+                },
+              ]),
+              case srs.pages {
+                0 -> element.none()
+                total ->
+                  html.div(
+                    [
+                      attribute.class(
+                        "flex items-center gap-3 pt-1 w-48 sm:w-64",
+                      ),
+                    ],
+                    [
+                      html.div(
+                        [
+                          attribute.class(
+                            "flex-1 h-1.5 bg-zinc-700 rounded-full overflow-hidden",
+                          ),
+                        ],
+                        [
+                          html.div(
+                            [
+                              attribute.class(case srs.pages_read == total {
+                                True -> "h-full bg-emerald-500 rounded-full"
+                                False -> "h-full bg-violet-500 rounded-full"
+                              }),
+                              attribute.style(
+                                "width",
+                                float.to_string(
+                                  int.to_float(srs.pages_read)
+                                  /. int.to_float(total)
+                                  *. 100.0,
+                                )
+                                  <> "%",
+                              ),
+                            ],
+                            [],
+                          ),
+                        ],
+                      ),
+                      html.span(
+                        [attribute.class("text-xs text-zinc-400 shrink-0")],
+                        [
+                          element.text(
+                            float.to_string(
+                              {
+                                {
+                                  int.to_float(srs.pages_read)
+                                  /. int.to_float(total)
+                                }
+                                *. 100.0
+                              }
+                              |> float.to_precision(2),
+                            )
+                            <> "% read",
+                          ),
+                        ],
+                      ),
+                    ],
                   )
               },
             ]),
-            case srs.pages {
-              0 -> element.none()
-              total ->
-                html.div(
-                  [attribute.class("flex items-center gap-3 pt-1 w-48 sm:w-64")],
-                  [
-                    html.div(
-                      [
-                        attribute.class(
-                          "flex-1 h-1.5 bg-zinc-700 rounded-full overflow-hidden",
-                        ),
-                      ],
-                      [
-                        html.div(
-                          [
-                            attribute.class(case srs.pages_read == total {
-                              True -> "h-full bg-emerald-500 rounded-full"
-                              False -> "h-full bg-violet-500 rounded-full"
-                            }),
-                            attribute.style(
-                              "width",
-                              float.to_string(
-                                int.to_float(srs.pages_read)
-                                /. int.to_float(total)
-                                *. 100.0,
-                              )
-                                <> "%",
-                            ),
-                          ],
-                          [],
-                        ),
-                      ],
-                    ),
-                    html.span(
-                      [attribute.class("text-xs text-zinc-400 shrink-0")],
-                      [
-                        element.text(
-                          float.to_string(
-                            {
-                              {
-                                int.to_float(srs.pages_read)
-                                /. int.to_float(total)
-                              }
-                              *. 100.0
-                            }
-                            |> float.to_precision(2),
-                          )
-                          <> "% read",
-                        ),
-                      ],
-                    ),
-                  ],
-                )
-            },
-          ]),
-          html.div([attribute.class("flex flex-wrap gap-2")], [
-            button.icon_label(
-              "ph ph-book-open-text text-2xl",
-              case srs.pages_read {
-                0 -> "Start Reading"
-                _ ->
-                  case srs.pages_read == srs.pages {
-                    False -> "Continue"
-                    True -> "Re-read"
-                  }
+            html.div([attribute.class("flex flex-wrap gap-2")], [
+              button.icon_label(
+                "ph ph-[book-open-text] text-2xl",
+                case srs.pages_read {
+                  0 -> "Start Reading"
+                  _ ->
+                    case srs.pages_read == srs.pages {
+                      False -> "Continue"
+                      True -> "Re-read"
+                    }
+                },
+                [
+                  event.on_click(Read),
+                  button.primary(),
+                  attribute.class("font-semibold"),
+                ],
+              ),
+              case m.admin {
+                False -> element.none()
+                True ->
+                  button.icon(
+                    "ph ph-[pencil-simple-line] text-2xl",
+                    "Edit series",
+                    [
+                      event.on_click(ShowEditor(True)),
+                      button.secondary(),
+                      attribute.class("font-medium"),
+                    ],
+                  )
               },
-              [
-                event.on_click(Read),
-                button.primary(),
-                attribute.class("font-semibold"),
-              ],
-            ),
-            // button.icon_label(
-            //   "ph ph-clock-counter-clockwise text-2xl",
-            //   "Request Update",
-            //   [
-            //     event.on_click(RequestUpdate),
-            //     button.secondary(),
-            //     attribute.class("font-medium"),
-            //   ],
-            // ),
-            case m.admin {
-              False -> element.none()
-              True ->
-                button.icon("ph ph-pencil-simple-line text-2xl", [
-                  event.on_click(ShowEditor(True)),
-                  button.secondary(),
-                  attribute.class("font-medium"),
-                ])
-            },
-          ]),
-          html.div(
-            [attribute.class("flex flex-wrap gap-2")],
-            list.append(
-              [
-                tag.list_with_function(
-                  metadata.genres |> list.append(metadata.tags),
-                  fn(t) {
+            ]),
+            html.div(
+              [attribute.class("flex flex-wrap gap-2")],
+              list.append(
+                [
+                  tag.list_with_function(
+                    metadata.tags |> list.append(metadata.genres),
+                    fn(t) {
+                      [
+                        event.on("dblclick", {
+                          RemoveTag(t.id) |> decode.success
+                        }),
+                      ]
+                    },
+                  ),
+                ],
+                [
+                  tag.element(
                     [
-                      event.on("dblclick", { RemoveTag(t.id) |> decode.success }),
-                    ]
-                  },
-                ),
-              ],
-              [
-                tag.element(
-                  [
-                    tag.color(""),
-                    attribute.class("px-4"),
-                    event.on_click(ShowEditor(True)),
-                  ],
-                  [
-                    html.i(
-                      [attribute.class("ph-bold ph-plus text-[1.3rem]")],
-                      [],
-                    ),
-                  ],
-                ),
-                html.span([attribute.class("inline-flex items-center")], [
-                  html.i(
+                      tag.color(""),
+                      attribute.class("px-4"),
+                      event.on_click(ShowEditor(True)),
+                    ],
                     [
-                      attribute.class(
-                        "ph-fill ph-circle "
-                        <> case metadata.publication_status {
-                          series.Ongoing -> "text-green-400"
-                          series.Hiatus -> "text-orange-400"
-                          series.Completed | series.Ended -> "text-sky-400"
-                          series.Cancelled -> "text-red-400"
-                          _ -> "text-gray-400"
-                        },
+                      html.i(
+                        [attribute.class("ph ph-[plus--bold] text-[1.1rem]")],
+                        [],
                       ),
                     ],
-                    [],
                   ),
-                  tag.simple(
-                    series.publication_title(metadata.publication_status),
-                    [],
+                  html.span(
+                    [attribute.class("inline-flex items-center gap-1")],
+                    [
+                      html.i(
+                        [
+                          attribute.class(
+                            "ph ph-[circle--fill] "
+                            <> case metadata.publication_status {
+                              series.Ongoing -> "text-green-400"
+                              series.Hiatus -> "text-orange-400"
+                              series.Completed | series.Ended -> "text-sky-400"
+                              series.Cancelled -> "text-red-400"
+                              _ -> "text-gray-400"
+                            },
+                          ),
+                        ],
+                        [],
+                      ),
+                      html.span([attribute.class(tag.tag_appearance)], [
+                        element.text(series.publication_label(
+                          metadata.publication_status,
+                        )),
+                      ]),
+                    ],
                   ),
-                ]),
-              ],
+                ],
+              ),
             ),
+          ]),
+        ],
+      ),
+      html.div(
+        [
+          attribute.class(
+            "relative z-10 space-y-4 pt-2 border-t border-zinc-800",
           ),
-        ]),
-      ]),
-      html.div([attribute.class("space-y-4 pt-2 border-t border-zinc-800")], [
-        html.div([attribute.class("space-y-3")], [
-          html.h2([attribute.class("font-bold text-2xl")], [
-            element.text("About"),
+        ],
+        [
+          html.div([attribute.class("space-y-3")], [
+            html.h2([attribute.class("font-bold text-2xl")], [
+              element.text("About"),
+            ]),
+            html.p([attribute.class("text-sm text-zinc-300 leading-relaxed")], [
+              element.text(metadata.summary),
+            ]),
           ]),
-          html.p([attribute.class("text-sm text-zinc-300 leading-relaxed")], [
-            element.text(metadata.summary),
-          ]),
-        ]),
-        {
-          let chapters_from_vols =
-            list.map(details.volumes, fn(vol: series.Volume) {
-              list.map(vol.chapters, fn(chp: series.Chapter) { #(chp.id, True) })
-            })
-            |> list.flatten
-            |> dict.from_list
-          let filtered_chapters =
-            list.filter(
-              list.append(details.chapters, details.specials),
-              fn(chp: series.Chapter) {
-                bool.negate(dict.has_key(chapters_from_vols, chp.id))
-              },
-            )
-          let has_volumes = !list.is_empty(details.volumes)
-          let has_chapters = !list.is_empty(filtered_chapters)
-          let chp_sort = fn(a: series.Chapter, b: series.Chapter) {
-            let cmp = float.compare(a.sort_order, b.sort_order)
-            case m.sort_ascending {
-              True -> cmp
-              False -> order.negate(cmp)
+          {
+            let chapters_from_vols =
+              list.map(details.volumes, fn(vol: series.Volume) {
+                list.map(vol.chapters, fn(chp: series.Chapter) {
+                  #(chp.id, True)
+                })
+              })
+              |> list.flatten
+              |> dict.from_list
+            let filtered_chapters =
+              list.filter(
+                list.append(details.chapters, details.specials),
+                fn(chp: series.Chapter) {
+                  bool.negate(dict.has_key(chapters_from_vols, chp.id))
+                },
+              )
+            let has_volumes = !list.is_empty(details.volumes)
+            let has_chapters = !list.is_empty(filtered_chapters)
+            let chp_sort = fn(a: series.Chapter, b: series.Chapter) {
+              let cmp = float.compare(a.sort_order, b.sort_order)
+              case m.sort_ascending {
+                True -> cmp
+                False -> order.negate(cmp)
+              }
             }
-          }
 
-          html.div([attribute.class("space-y-4")], [
-            case has_volumes {
-              False -> element.none()
-              True ->
-                html.div(
-                  [attribute.class("flex items-center justify-between")],
-                  [
-                    html.div(
-                      [attribute.class("flex gap-4 border-b border-zinc-800")],
-                      [
-                        tab_button(
-                          "Storyline",
-                          m.active_tab == StorylineTab,
-                          SetTab(StorylineTab),
-                        ),
-                        tab_button(
-                          "Volumes",
-                          m.active_tab == VolumesTab,
-                          SetTab(VolumesTab),
-                        ),
-                        case has_chapters {
-                          False -> element.none()
-                          True ->
-                            tab_button(
-                              "Chapters",
-                              m.active_tab == ChaptersTab,
-                              SetTab(ChaptersTab),
-                            )
+            html.div([attribute.class("space-y-4")], [
+              case has_volumes {
+                False -> element.none()
+                True ->
+                  html.div(
+                    [attribute.class("flex items-center justify-between")],
+                    [
+                      html.div(
+                        [attribute.class("flex gap-4 border-b border-zinc-800")],
+                        [
+                          tab_button(
+                            "Storyline",
+                            m.active_tab == StorylineTab,
+                            SetTab(StorylineTab),
+                          ),
+                          tab_button(
+                            "Volumes",
+                            m.active_tab == VolumesTab,
+                            SetTab(VolumesTab),
+                          ),
+                          case has_chapters {
+                            False -> element.none()
+                            True ->
+                              tab_button(
+                                "Chapters",
+                                m.active_tab == ChaptersTab,
+                                SetTab(ChaptersTab),
+                              )
+                          },
+                        ],
+                      ),
+                      button.icon_label(
+                        case m.sort_ascending {
+                          True -> "ph ph-[sort-ascending] text-2xl"
+                          False -> "ph ph-[sort-descending] text-2xl"
                         },
-                      ],
-                    ),
-                    button.icon_label(
+                        case m.sort_ascending {
+                          True -> "Ascending"
+                          False -> "Descending"
+                        },
+                        [button.secondary(), event.on_click(ToggleSort)],
+                      ),
+                    ],
+                  )
+              },
+              case m.active_tab {
+                StorylineTab -> {
+                  let vol_items =
+                    list.map(details.volumes, fn(vol: series.Volume) {
+                      let sort_key = case
+                        list.sort(vol.chapters, fn(a: series.Chapter, b) {
+                          float.compare(a.sort_order, b.sort_order)
+                        })
+                      {
+                        [] -> 0.0
+                        [first, ..] -> first.sort_order
+                      }
+                      StorylineVolume(vol, sort_key)
+                    })
+                  let chp_items = list.map(filtered_chapters, StorylineChapter)
+                  let storyline =
+                    list.sort(list.append(vol_items, chp_items), fn(a, b) {
+                      let key_a = case a {
+                        StorylineVolume(_, k) -> k
+                        StorylineChapter(c) -> c.sort_order
+                      }
+                      let key_b = case b {
+                        StorylineVolume(_, k) -> k
+                        StorylineChapter(c) -> c.sort_order
+                      }
+                      let cmp = float.compare(key_a, key_b)
                       case m.sort_ascending {
-                        True -> "ph ph-sort-ascending text-2xl"
-                        False -> "ph ph-sort-descending text-2xl"
-                      },
-                      case m.sort_ascending {
-                        True -> "Ascending"
-                        False -> "Descending"
-                      },
-                      [button.secondary(), event.on_click(ToggleSort)],
-                    ),
-                  ],
-                )
-            },
-            case m.active_tab {
-              StorylineTab -> {
-                let vol_items =
-                  list.map(details.volumes, fn(vol: series.Volume) {
-                    let sort_key = case
-                      list.sort(vol.chapters, fn(a: series.Chapter, b) {
-                        float.compare(a.sort_order, b.sort_order)
-                      })
-                    {
-                      [] -> 0.0
-                      [first, ..] -> first.sort_order
-                    }
-                    StorylineVolume(vol, sort_key)
-                  })
-                let chp_items =
-                  list.map(filtered_chapters, fn(chp) { StorylineChapter(chp) })
-                let storyline =
-                  list.sort(list.append(vol_items, chp_items), fn(a, b) {
-                    let key_a = case a {
-                      StorylineVolume(_, k) -> k
-                      StorylineChapter(c) -> c.sort_order
-                    }
-                    let key_b = case b {
-                      StorylineVolume(_, k) -> k
-                      StorylineChapter(c) -> c.sort_order
-                    }
-                    let cmp = float.compare(key_a, key_b)
-                    case m.sort_ascending {
-                      True -> cmp
-                      False -> order.negate(cmp)
-                    }
-                  })
-                html.div(
-                  [attribute.class("flex flex-wrap gap-3")],
-                  list.map(storyline, fn(item) {
-                    case item {
-                      StorylineVolume(vol, _) -> {
+                        True -> cmp
+                        False -> order.negate(cmp)
+                      }
+                    })
+                  html.div(
+                    [attribute.class("flex flex-wrap gap-3")],
+                    list.map(storyline, fn(item) {
+                      case item {
+                        StorylineVolume(vol, _) -> {
+                          let pct = case vol.pages {
+                            0 -> 0.0
+                            p ->
+                              int.to_float(vol.pages_read)
+                              /. int.to_float(p)
+                              *. 100.0
+                          }
+                          let chp_count = list.length(vol.chapters)
+                          cover_card(
+                            image_url.volume_cover(
+                              vol.id,
+                              account |> account.image_key,
+                            ),
+                            vol.name,
+                            case chp_count > 1 {
+                              True ->
+                                option.Some(
+                                  int.to_string(chp_count) <> " chapters",
+                                )
+                              False -> option.None
+                            },
+                            pct,
+                            vol.pages_read == vol.pages && vol.pages > 0,
+                            [event.on_click(ReadVolume(vol))],
+                          )
+                        }
+                        StorylineChapter(chp) -> {
+                          let pct = case chp.pages {
+                            0 -> 0.0
+                            p ->
+                              int.to_float(chp.pages_read)
+                              /. int.to_float(p)
+                              *. 100.0
+                          }
+                          cover_card(
+                            image_url.chapter_cover(
+                              chp.id,
+                              account |> account.image_key,
+                            ),
+                            chp.title,
+                            option.None,
+                            pct,
+                            chp.pages_read == chp.pages && chp.pages > 0,
+                            [event.on_click(ReadChapter(chp.id))],
+                          )
+                        }
+                      }
+                    }),
+                  )
+                }
+                VolumesTab ->
+                  html.div(
+                    [attribute.class("flex flex-wrap gap-3")],
+                    list.map(
+                      list.sort(
+                        details.volumes,
+                        fn(a: series.Volume, b: series.Volume) {
+                          let cmp = int.compare(a.max_number, b.max_number)
+                          case m.sort_ascending {
+                            True -> cmp
+                            False -> order.negate(cmp)
+                          }
+                        },
+                      ),
+                      fn(vol: series.Volume) {
                         let pct = case vol.pages {
                           0 -> 0.0
                           p ->
@@ -682,8 +918,15 @@ fn display(
                           vol.pages_read == vol.pages && vol.pages > 0,
                           [event.on_click(ReadVolume(vol))],
                         )
-                      }
-                      StorylineChapter(chp) -> {
+                      },
+                    ),
+                  )
+                ChaptersTab ->
+                  html.div(
+                    [attribute.class("flex flex-wrap gap-3")],
+                    list.map(
+                      list.sort(filtered_chapters, chp_sort),
+                      fn(chp: series.Chapter) {
                         let pct = case chp.pages {
                           0 -> 0.0
                           p ->
@@ -702,83 +945,14 @@ fn display(
                           chp.pages_read == chp.pages && chp.pages > 0,
                           [event.on_click(ReadChapter(chp.id))],
                         )
-                      }
-                    }
-                  }),
-                )
-              }
-              VolumesTab ->
-                html.div(
-                  [attribute.class("flex flex-wrap gap-3")],
-                  list.map(
-                    list.sort(
-                      details.volumes,
-                      fn(a: series.Volume, b: series.Volume) {
-                        let cmp = int.compare(a.max_number, b.max_number)
-                        case m.sort_ascending {
-                          True -> cmp
-                          False -> order.negate(cmp)
-                        }
                       },
                     ),
-                    fn(vol: series.Volume) {
-                      let pct = case vol.pages {
-                        0 -> 0.0
-                        p ->
-                          int.to_float(vol.pages_read)
-                          /. int.to_float(p)
-                          *. 100.0
-                      }
-                      let chp_count = list.length(vol.chapters)
-                      cover_card(
-                        image_url.volume_cover(
-                          vol.id,
-                          account |> account.image_key,
-                        ),
-                        vol.name,
-                        case chp_count > 1 {
-                          True ->
-                            option.Some(int.to_string(chp_count) <> " chapters")
-                          False -> option.None
-                        },
-                        pct,
-                        vol.pages_read == vol.pages && vol.pages > 0,
-                        [event.on_click(ReadVolume(vol))],
-                      )
-                    },
-                  ),
-                )
-              ChaptersTab ->
-                html.div(
-                  [attribute.class("flex flex-wrap gap-3")],
-                  list.map(
-                    list.sort(filtered_chapters, chp_sort),
-                    fn(chp: series.Chapter) {
-                      let pct = case chp.pages {
-                        0 -> 0.0
-                        p ->
-                          int.to_float(chp.pages_read)
-                          /. int.to_float(p)
-                          *. 100.0
-                      }
-                      cover_card(
-                        image_url.chapter_cover(
-                          chp.id,
-                          account |> account.image_key,
-                        ),
-                        chp.title,
-                        option.None,
-                        pct,
-                        chp.pages_read == chp.pages && chp.pages > 0,
-                        [event.on_click(ReadChapter(chp.id))],
-                      )
-                    },
-                  ),
-                )
-            },
-          ])
-        },
-      ]),
+                  )
+              },
+            ])
+          },
+        ],
+      ),
     ],
   )
 }
@@ -809,7 +983,9 @@ fn editor(m: Model, srs: series.Series, metadata: series.Metadata) {
             html.h1([attribute.class("font-bold text-2xl")], [
               element.text("Edit Series"),
             ]),
-            button.icon("ph ph-x text-2xl", [event.on_click(ShowEditor(False))]),
+            button.icon("ph ph-[x] text-2xl", "Close editor", [
+              event.on_click(ShowEditor(False)),
+            ]),
           ]),
           html.form(
             [
@@ -868,7 +1044,7 @@ fn editor(m: Model, srs: series.Series, metadata: series.Metadata) {
                       }
                     }),
                   ]),
-                  button.icon("ph ph-plus", [
+                  button.icon("ph ph-[plus]", "Add tag", [
                     attribute.type_("button"),
                     button.secondary(),
                     event.on_click(SubmitNewTag),
@@ -980,32 +1156,6 @@ fn cover_card(
       ]),
     ],
   )
-}
-
-fn age_rating_color(rating: series.AgeRating) -> String {
-  case rating {
-    series.RatingPending
-    | series.EarlyChildhood
-    | series.Everyone
-    | series.Everyone10Plus -> "bg-emerald-500/20 text-emerald-400"
-    series.Teen -> "bg-amber-500/20 text-amber-400"
-    series.Mature17Plus -> "bg-orange-500/20 text-orange-400"
-    series.AdultsOnly -> "bg-red-500/20 text-red-400"
-    _ -> "bg-zinc-700 text-zinc-400"
-  }
-}
-
-fn age_rating_label(rating: series.AgeRating) -> String {
-  case rating {
-    series.RatingPending -> "Rating Pending"
-    series.EarlyChildhood -> "Early Childhood"
-    series.Everyone -> "Everyone"
-    series.Everyone10Plus -> "Everyone 10+"
-    series.Teen -> "Teen"
-    series.Mature17Plus -> "Mature 17+"
-    series.AdultsOnly -> "Adults Only"
-    _ -> "Unknown"
-  }
 }
 
 fn label(for: String, title: String) {

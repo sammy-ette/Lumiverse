@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -15,20 +17,26 @@ import (
 	"github.com/davidbyttow/govips/v2/vips"
 	"github.com/glebarez/sqlite"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/compress"
 	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/etag"
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/proxy"
-	"github.com/gofiber/fiber/v3/middleware/static"
 	"gorm.io/gorm"
 	gormlog "gorm.io/gorm/logger"
 )
 
 var (
-	db           *gorm.DB
-	httpClient   = &http.Client{Timeout: 10 * time.Second}
-	kavitaURL    string
-	kavitaAPIKey string
-	serverURL    string
+	db               *gorm.DB
+	httpClient       *http.Client
+	noRedirectClient *http.Client
+	kavitaURL        string
+	kavitaAPIKey     string
+
+	// Static assets loaded at startup
+	cssBytes  []byte
+	jsBytes   []byte
+	swVersion string
 )
 
 type UserPreference struct {
@@ -85,11 +93,16 @@ func kavitaDo(method, path string, body io.Reader) (*http.Response, error) {
 }
 
 func getUserByUsername(username string) (*KavitaUser, error) {
-	resp, err := kavitaDo(http.MethodGet, "/api/users", nil)
+	resp, err := kavitaDo(http.MethodGet, "/api/users?includePending=true", nil)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("kavita returned %d: %s", resp.StatusCode, body)
+	}
 
 	var users []KavitaUser
 	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
@@ -129,7 +142,43 @@ func validateToken(authHeader string) (*KavitaAccount, error) {
 	return &account, nil
 }
 
+func validateCookie(cookie string) (*KavitaAccount, error) {
+	req, err := http.NewRequest(http.MethodGet, kavitaURL+"/api/account", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Cookie", cookie)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("unauthorized")
+	}
+
+	var account KavitaAccount
+	json.NewDecoder(resp.Body).Decode(&account)
+	if account.Username == "" {
+		return nil, errors.New("empty username from kavita")
+	}
+	return &account, nil
+}
+
 func authRequired(c fiber.Ctx) error {
+	cookie := string(c.Request().Header.Peek("Cookie"))
+	if cookie != "" {
+		account, err := validateCookie(cookie)
+		if err == nil {
+			c.Locals("account", account)
+			return c.Next()
+		}
+		log.Printf("auth cookie: %v", err)
+	}
+
 	auth := c.Get("Authorization")
 	if auth == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
@@ -204,21 +253,166 @@ func updatePreferences(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"maxAgeRating": body.MaxAgeRating})
 }
 
+// fixCookieAttrs rewrites Set-Cookie attributes from Kavita so they work when
+// served through Lumiverse:
+//   - Strips Domain so the cookie is scoped to serverURL's host, not Kavita's.
+//   - Adds Secure when SameSite=None is present but Secure is missing (Chrome 80+
+//     rejects SameSite=None without Secure, so the browser would drop the cookie).
+func fixCookieAttrs(v string) string {
+	parts := strings.Split(v, ";")
+	if len(parts) == 0 {
+		return v
+	}
+	hasSecure := false
+	hasSameSiteNone := false
+	out := []string{parts[0]}
+	for _, part := range parts[1:] {
+		trimmed := strings.TrimSpace(part)
+		lower := strings.ToLower(trimmed)
+		switch {
+		case lower == "secure":
+			hasSecure = true
+			out = append(out, trimmed)
+		case lower == "samesite=none":
+			hasSameSiteNone = true
+			out = append(out, trimmed)
+		case strings.HasPrefix(lower, "domain="):
+			// Drop explicit Domain; let the browser bind the cookie to the
+			// host it received the response from (serverURL), not Kavita's host.
+		default:
+			out = append(out, trimmed)
+		}
+	}
+	if hasSameSiteNone && !hasSecure {
+		out = append(out, "Secure")
+	}
+	return strings.Join(out, "; ")
+}
+
+func oidcProxy(c fiber.Ctx) error {
+	req, err := http.NewRequest(c.Method(), kavitaURL+c.OriginalURL(), bytes.NewReader(c.Body()))
+	if err != nil {
+		return c.Status(fiber.StatusBadGateway).SendString("proxy error")
+	}
+	for k, v := range c.Request().Header.All() {
+		if !strings.EqualFold(string(k), "Host") {
+			req.Header.Set(string(k), string(v))
+		}
+	}
+	// fasthttp stores cookies in a separate internal buffer; Peek("Cookie") reconstructs
+	// the full header from that store, ensuring it's forwarded even if Header.All() misses it.
+	if cookie := string(c.Request().Header.Peek("Cookie")); cookie != "" {
+		req.Header.Set("Cookie", cookie)
+	}
+	// Set Host to the external hostname so Kavita builds redirect_uri from it,
+	// not its internal Docker hostname. ASP.NET Core reads Request.Host directly
+	// from this header, and Kavita's own event handler upgrades http:// → https://.
+	req.Host = c.Hostname()
+	resp, err := noRedirectClient.Do(req)
+	if err != nil {
+		return c.Status(fiber.StatusBadGateway).SendString("proxy error")
+	}
+	defer resp.Body.Close()
+
+	for k, vs := range resp.Header {
+		for _, v := range vs {
+			if strings.EqualFold(k, "Set-Cookie") {
+				// Use the raw fasthttp Add so each Set-Cookie stays as its own
+				// header line. c.Append joins multiple values with ", " which
+				// makes the browser treat both cookies as one mangled cookie.
+				c.Response().Header.Add(k, fixCookieAttrs(v))
+			} else {
+				c.Response().Header.Add(k, v)
+			}
+		}
+	}
+
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		location := resp.Header.Get("Location")
+		if kavitaURL != "" && location != "" {
+			if u, err := url.Parse(location); err == nil {
+				// Rewrite redirect_uri by operating on the raw query string directly.
+				// Using url.Values.Encode() would re-sort and re-encode all parameters,
+				// which can subtly alter the state blob and break ASP.NET Core's
+				// data-protection decryption on the callback.
+				// Kavita always generates https:// for redirect_uri even when
+				// kavitaURL uses http:// (e.g. internal Docker address). Try
+				// both schemes so the replacement works either way.
+				lumiverseURL := c.Protocol() + "://" + c.Hostname()
+				rawQuery := u.RawQuery
+				encodedServer := url.QueryEscape(lumiverseURL)
+				kavitaHost := strings.TrimPrefix(strings.TrimPrefix(kavitaURL, "https://"), "http://")
+				for _, scheme := range []string{"http", "https"} {
+					encoded := url.QueryEscape(scheme + "://" + kavitaHost)
+					replaced := strings.Replace(rawQuery, "redirect_uri="+encoded, "redirect_uri="+encodedServer, 1)
+					if replaced != rawQuery {
+						rawQuery = replaced
+						break
+					}
+				}
+				u.RawQuery = rawQuery
+				location = u.String()
+			}
+		}
+		c.Set("Location", location)
+		return c.SendStatus(resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return c.Status(fiber.StatusBadGateway).SendString("proxy error")
+	}
+	return c.Status(resp.StatusCode).Send(body)
+}
+
 func serveIndex(c fiber.Ctx) error {
 	data, err := os.ReadFile("./dist/index.html")
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).SendString("not found")
 	}
-	html := string(data)
-	if serverURL != "" {
-		html = strings.Replace(html, "</head>",
-			"<script>window.config = { SERVER_URL: '"+serverURL+"' }</script></head>", 1)
-	}
+	html := strings.ReplaceAll(string(data), "__ASSET_VERSION__", swVersion)
+	c.Set("Cache-Control", "no-cache")
 	c.Set("Content-Type", "text/html; charset=utf-8")
 	return c.SendString(html)
 }
 
+func serveMemory(data []byte, contentType string) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		c.Set("Cache-Control", "public, max-age=31536000, immutable")
+		c.Set("Content-Type", contentType)
+		return c.Send(data)
+	}
+}
+
+func loadAssets() {
+	var err error
+	cssBytes, err = os.ReadFile("./dist/lumiverse.css")
+	if err != nil {
+		log.Fatal("could not read lumiverse.css: %v", err)
+	}
+	jsBytes, err = os.ReadFile("./dist/lumiverse.js")
+	if err != nil {
+		log.Fatal("could not read lumiverse.js: %v", err)
+	}
+
+	// Compute version hash from JS+CSS for Service Worker cache busting.
+	// Changes automatically on every deploy without manual bumping.
+	h := sha256.New()
+	h.Write(jsBytes)
+	h.Write(cssBytes)
+	swVersion = fmt.Sprintf("%x", h.Sum(nil))[:8]
+}
+
 func main() {
+	kavitaURL = os.Getenv("KAVITA_URL")
+	kavitaAPIKey = os.Getenv("KAVITA_API_KEY")
+
+	if kavitaURL == "" {
+		log.Fatal("KAVITA_URL not set")
+	}
+
+	loadAssets()
+
 	if err := vips.Startup(nil); err != nil {
 		log.Printf("WARNING: libvips startup failed: %v — image proxy will be unavailable", err)
 	} else {
@@ -226,12 +420,23 @@ func main() {
 	}
 	initImageProxy()
 
-	kavitaURL = os.Getenv("KAVITA_URL")
-	kavitaAPIKey = os.Getenv("KAVITA_API_KEY")
-	serverURL = os.Getenv("SERVER_URL")
-
-	if kavitaURL == "" {
-		log.Println("WARNING: KAVITA_URL not set")
+	newTransport := func() *http.Transport {
+		return &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 20,
+			IdleConnTimeout:     90 * time.Second,
+		}
+	}
+	httpClient = &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: newTransport(),
+	}
+	noRedirectClient = &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: newTransport(),
 	}
 
 	dbPath := os.Getenv("DB_PATH")
@@ -246,11 +451,26 @@ func main() {
 	if err != nil {
 		log.Fatal("open db:", err)
 	}
+	db.Exec("PRAGMA journal_mode=WAL")
+	db.Exec("PRAGMA synchronous=NORMAL")
+	db.Exec("PRAGMA cache_size=10000")
+	db.Exec("PRAGMA temp_store=memory")
+	sqlDB, _ := db.DB()
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
+	sqlDB.SetConnMaxLifetime(time.Hour)
 	db.AutoMigrate(&UserPreference{})
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		ReadBufferSize:  16 * 1024,
+		WriteBufferSize: 16 * 1024,
+		ReadTimeout:     30 * time.Second,
+		WriteTimeout:    60 * time.Second,
+		IdleTimeout:     120 * time.Second,
+	})
 	app.Use(logger.New())
 	app.Use(cors.New())
+	app.Use(compress.New(compress.Config{Level: compress.LevelBestSpeed}))
 
 	lumiverse := app.Group("/api/lumiverse", authRequired)
 	lumiverse.Get("/preferences", getPreferences)
@@ -266,17 +486,24 @@ func main() {
 		app.All("/api/*", func(c fiber.Ctx) error {
 			return proxy.Do(c, kavitaURL+c.OriginalURL())
 		})
-		app.All("/signin-oidc", func(c fiber.Ctx) error {
-			return proxy.Do(c, kavitaURL+c.OriginalURL())
-		})
-		app.All("/oidc/*", func(c fiber.Ctx) error {
-			return proxy.Do(c, kavitaURL+c.OriginalURL())
-		})
+		app.All("/signin-oidc", oidcProxy)
+		app.All("/oidc/*", oidcProxy)
 	}
 
-	app.Get("/lumiverse.css", static.New("./dist/lumiverse.css"))
-	app.Get("/lumiverse.js", static.New("./dist/lumiverse.js"))
-	app.Get("/lumiverse.mjs", static.New("./dist/lumiverse.mjs"))
+	app.Get("/lumiverse.css", etag.New(), serveMemory(cssBytes, "text/css; charset=utf-8"))
+	app.Get("/lumiverse.js", etag.New(), serveMemory(jsBytes, "application/javascript; charset=utf-8"))
+
+	app.Get("/sw.js", func(c fiber.Ctx) error {
+		swData, err := os.ReadFile("./sw.js")
+		if err != nil {
+			return c.Status(fiber.StatusNotFound).SendString("not found")
+		}
+		versioned := strings.ReplaceAll(string(swData), "__CACHE_VERSION__", swVersion)
+		c.Set("Cache-Control", "no-cache, no-store")
+		c.Set("Content-Type", "application/javascript; charset=utf-8")
+		return c.SendString(versioned)
+	})
+
 	app.Get("/*", serveIndex)
 
 	port := os.Getenv("PORT")

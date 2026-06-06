@@ -1,10 +1,16 @@
 import gleam/dict
+import gleam/dynamic/decode
+import gleam/int
 import gleam/list
 import gleam/option
 import gleam/string
+import gleam/uri
+import lumiverse/api/account
+import lumiverse/api/image_url
 import lumiverse/api/search
 import lumiverse/api/series
-import lumiverse/elements/series as series_el
+import lumiverse/elements/series as series_elements
+import lumiverse/elements/tag
 import lustre
 import lustre/attribute
 import lustre/component
@@ -12,8 +18,9 @@ import lustre/effect
 import lustre/element
 import lustre/element/html
 import lustre/event
+import modem
 import plinth/browser/document
-import plinth/javascript/date
+import plinth/javascript/global
 import rsvp
 
 type Model {
@@ -25,15 +32,22 @@ type Model {
     active_age_rating: option.Option(series.AgeRating),
     loading: Bool,
     pending_metadata: Int,
+    show_filters: Bool,
+    search_timeout: option.Option(global.TimerID),
   )
 }
 
 type Msg {
   QueryChanged(String)
+  SearchInputChanged(String)
+  SearchTimerSet(global.TimerID)
+  DoSearch(String)
+  SearchSubmit
   GotResults(Result(List(search.SeriesSearchResult), rsvp.Error))
   GotMetadata(Int, Result(series.Metadata, rsvp.Error))
   ToggleTag(Int)
   SetAgeRating(option.Option(series.AgeRating))
+  ToggleFilters
 }
 
 pub fn register() {
@@ -49,7 +63,7 @@ pub fn register() {
 pub fn element(attrs: List(attribute.Attribute(a))) {
   element.element(
     "search-page",
-    [attribute.class("flex w-full flex-col p-4"), ..attrs],
+    [attribute.class("flex w-full flex-col flex-1 p-4"), ..attrs],
     [],
   )
 }
@@ -68,6 +82,8 @@ fn init(_) {
       active_age_rating: option.None,
       loading: False,
       pending_metadata: 0,
+      show_filters: False,
+      search_timeout: option.None,
     ),
     effect.none(),
   )
@@ -79,6 +95,7 @@ fn update(m: Model, msg: Msg) {
       case string.is_empty(q) {
         True -> #(
           Model(
+            ..m,
             query: q,
             results: [],
             metadata: dict.new(),
@@ -91,6 +108,7 @@ fn update(m: Model, msg: Msg) {
         )
         False -> #(
           Model(
+            ..m,
             query: q,
             results: [],
             metadata: dict.new(),
@@ -100,6 +118,50 @@ fn update(m: Model, msg: Msg) {
             pending_metadata: 0,
           ),
           search.search(q, GotResults),
+        )
+      }
+
+    SearchInputChanged(q) -> {
+      let clear_eff = case m.search_timeout {
+        option.Some(tid) ->
+          effect.from(fn(_) { global.clear_timeout(tid) })
+        option.None -> effect.none()
+      }
+      let debounce_eff = case string.length(q) > 1 {
+        False -> effect.none()
+        True ->
+          effect.from(fn(dispatch) {
+            let tid =
+              global.set_timeout(300, fn() { dispatch(DoSearch(q)) })
+            dispatch(SearchTimerSet(tid))
+          })
+      }
+      #(
+        Model(..m, query: q, search_timeout: option.None),
+        effect.batch([clear_eff, debounce_eff]),
+      )
+    }
+
+    SearchTimerSet(tid) -> #(
+      Model(..m, search_timeout: option.Some(tid)),
+      effect.none(),
+    )
+
+    DoSearch(q) -> #(
+      Model(..m, search_timeout: option.None, loading: True),
+      search.search(q, GotResults),
+    )
+
+    SearchSubmit ->
+      case string.is_empty(m.query) {
+        True -> #(m, effect.none())
+        False -> #(
+          m,
+          modem.push(
+            "/search?q=" <> uri.percent_encode(m.query),
+            option.None,
+            option.None,
+          ),
         )
       }
 
@@ -142,10 +204,9 @@ fn update(m: Model, msg: Msg) {
       #(Model(..m, active_tags:), effect.none())
     }
 
-    SetAgeRating(rating) -> #(
-      Model(..m, active_age_rating: rating),
-      effect.none(),
-    )
+    SetAgeRating(rating) -> #(Model(..m, active_age_rating: rating), effect.none())
+
+    ToggleFilters -> #(Model(..m, show_filters: !m.show_filters), effect.none())
   }
 }
 
@@ -188,8 +249,6 @@ fn available_tags(m: Model) -> List(series.Tag) {
 }
 
 const all_age_ratings = [
-  // series.NotApplicable,
-  // series.UnknownRating,
   series.RatingPending,
   series.EarlyChildhood,
   series.Everyone,
@@ -199,36 +258,21 @@ const all_age_ratings = [
   series.AdultsOnly,
 ]
 
-
-fn age_rating_label(rating: series.AgeRating) -> String {
-  case rating {
-    series.NotApplicable -> "Not Applicable"
-    series.UnknownRating -> "Unknown"
-    series.RatingPending -> "Rating Pending"
-    series.EarlyChildhood -> "Early Childhood"
-    series.Everyone -> "Everyone"
-    series.Everyone10Plus -> "Everyone 10+"
-    series.Teen -> "Teen"
-    series.Mature17Plus -> "Mature 17+"
-    series.AdultsOnly -> "Adults Only"
-  }
-}
-
 fn spinner() {
   html.div(
     [attribute.class("flex justify-center items-center py-16")],
-    [html.i([attribute.class("ph ph-circle-notch animate-spin text-4xl text-zinc-400")], [])],
+    [html.i([attribute.class("ph ph-[circle-notch] animate-spin text-4xl text-zinc-400")], [])],
   )
 }
 
 fn empty_state(query: String) {
   html.div(
-    [attribute.class("flex flex-col items-center justify-center py-16 gap-3 text-zinc-500")],
+    [attribute.class("flex flex-col items-center justify-center flex-1 gap-3 text-zinc-500")],
     [
-      html.i([attribute.class("ph ph-magnifying-glass text-5xl")], []),
+      html.i([attribute.class("ph ph-[magnifying-glass] text-5xl")], []),
       case string.is_empty(query) {
         True ->
-          html.p([attribute.class("text-sm")], [element.text("Search for a series")])
+          html.p([attribute.class("text-sm")], [element.text("Type something to search")])
         False ->
           html.p([attribute.class("text-sm")], [
             element.text("No results for \"" <> query <> "\""),
@@ -238,105 +282,174 @@ fn empty_state(query: String) {
   )
 }
 
-fn filters_panel(
-  m: Model,
-  avail_tags: List(series.Tag),
-) {
+fn search_bar(m: Model) {
+  html.div([attribute.class("relative")], [
+    html.i(
+      [
+        attribute.class(
+          "ph ph-[magnifying-glass] absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none",
+        ),
+      ],
+      [],
+    ),
+    html.input([
+      attribute.class(
+        "w-full bg-zinc-900 rounded-xl pl-9 pr-4 py-3 text-sm text-zinc-200 outline-none border border-zinc-800 focus:border-violet-500 transition-colors",
+      ),
+      attribute.attribute("placeholder", "Search series..."),
+      attribute.value(m.query),
+      event.on_input(SearchInputChanged),
+      event.on("keydown", {
+        use key <- decode.subfield(["key"], decode.string)
+        case key {
+          "Enter" -> decode.success(SearchSubmit)
+          _ -> decode.failure(SearchSubmit, "not enter")
+        }
+      }),
+    ]),
+  ])
+}
+
+fn filters_panel(m: Model, avail_tags: List(series.Tag)) {
   html.div(
-    [attribute.class("md:w-48 shrink-0 space-y-6")],
+    [attribute.class("space-y-5")],
     [
-      html.div(
-        [attribute.class("space-y-2")],
-        [
-          html.p(
-            [
-              attribute.class(
-                "text-xs font-semibold text-zinc-400 uppercase tracking-wider",
-              ),
-            ],
-            [element.text("Age Rating")],
-          ),
-          html.div(
-            [attribute.class("flex flex-col gap-1")],
-            [
+      html.div([attribute.class("space-y-2")], [
+        html.p(
+          [attribute.class("text-xs font-semibold text-zinc-400 uppercase tracking-wider")],
+          [element.text("Age Rating")],
+        ),
+        html.div(
+          [attribute.class("flex flex-col gap-1")],
+          [
+            html.button(
+              [
+                attribute.class(case m.active_age_rating {
+                  option.None -> "text-sm text-left text-violet-400 font-medium"
+                  _ -> "text-sm text-left text-zinc-400 hover:text-zinc-200"
+                }),
+                event.on_click(SetAgeRating(option.None)),
+              ],
+              [element.text("All")],
+            ),
+            ..list.map(all_age_ratings, fn(rating) {
               html.button(
                 [
-                  attribute.class(case m.active_age_rating {
-                    option.None -> "text-sm text-left text-violet-400 font-medium"
-                    _ -> "text-sm text-left text-zinc-400 hover:text-zinc-200"
+                  attribute.class(case m.active_age_rating == option.Some(rating) {
+                    True -> "text-sm text-left text-violet-400 font-medium"
+                    False -> "text-sm text-left text-zinc-400 hover:text-zinc-200"
                   }),
-                  event.on_click(SetAgeRating(option.None)),
+                  event.on_click(SetAgeRating(option.Some(rating))),
                 ],
-                [element.text("All")],
-              ),
-              ..list.map(all_age_ratings, fn(rating) {
-                html.button(
-                  [
-                    attribute.class(case
-                      m.active_age_rating == option.Some(rating)
-                    {
-                      True -> "text-sm text-left text-violet-400 font-medium"
-                      False ->
-                        "text-sm text-left text-zinc-400 hover:text-zinc-200"
-                    }),
-                    event.on_click(SetAgeRating(option.Some(rating))),
-                  ],
-                  [element.text(age_rating_label(rating))],
-                )
-              })
-            ],
-          ),
-        ],
-      ),
+                [element.text(series_elements.age_rating_label(rating))],
+              )
+            })
+          ],
+        ),
+      ]),
       case avail_tags {
         [] ->
           case m.pending_metadata > 0 {
             False -> element.none()
             True ->
-              html.div(
-                [attribute.class("space-y-2 animate-pulse")],
-                [
-                  html.div([attribute.class("h-3 w-12 rounded bg-zinc-700")], []),
-                  html.div([attribute.class("space-y-1")], [
-                    html.div([attribute.class("h-3 w-16 rounded bg-zinc-800")], []),
-                    html.div([attribute.class("h-3 w-24 rounded bg-zinc-800")], []),
-                    html.div([attribute.class("h-3 w-14 rounded bg-zinc-800")], []),
-                  ]),
-                ],
-              )
+              html.div([attribute.class("space-y-2 animate-pulse")], [
+                html.div([attribute.class("h-3 w-12 rounded bg-zinc-700")], []),
+                html.div([attribute.class("space-y-1")], [
+                  html.div([attribute.class("h-3 w-16 rounded bg-zinc-800")], []),
+                  html.div([attribute.class("h-3 w-24 rounded bg-zinc-800")], []),
+                  html.div([attribute.class("h-3 w-14 rounded bg-zinc-800")], []),
+                ]),
+              ])
           }
         tags ->
-          html.div(
-            [attribute.class("space-y-2")],
-            [
-              html.p(
+          html.div([attribute.class("space-y-2")], [
+            html.p(
+              [attribute.class("text-xs font-semibold text-zinc-400 uppercase tracking-wider")],
+              [element.text("Tags")],
+            ),
+            html.div(
+              [attribute.class("max-h-48 overflow-y-auto flex flex-wrap gap-1")],
+              list.map(tags, fn(t) {
+                let active = list.contains(m.active_tags, t.id)
+                html.button(
+                  [
+                    attribute.class(case active {
+                      True -> "text-xs px-2 py-0.5 rounded-full bg-violet-600 text-white"
+                      False -> "text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                    }),
+                    event.on_click(ToggleTag(t.id)),
+                  ],
+                  [element.text(t.title)],
+                )
+              }),
+            ),
+          ])
+      },
+    ],
+  )
+}
+
+fn result_row(m: Model, r: search.SeriesSearchResult) {
+  let user = account.get()
+  let cover_url = image_url.series_cover_w(r.series_id, account.image_key(user), 100)
+  html.a(
+    [
+      attribute.href("/series/" <> int.to_string(r.series_id)),
+      attribute.class(
+        "flex gap-3 p-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 transition-colors",
+      ),
+    ],
+    [
+      html.img([
+        attribute.src(cover_url),
+        attribute.alt(r.name),
+        attribute.class("w-12 h-[4.5rem] object-cover rounded flex-shrink-0"),
+        attribute.attribute("loading", "lazy"),
+      ]),
+      html.div([attribute.class("flex flex-col gap-1 min-w-0 flex-1")], [
+        html.span(
+          [attribute.class("font-semibold text-sm text-zinc-100 leading-snug")],
+          [element.text(r.name)],
+        ),
+        case r.localized_name == "" {
+          True -> element.none()
+          False ->
+            html.span(
+              [attribute.class("text-xs text-zinc-400 truncate")],
+              [element.text(r.localized_name)],
+            )
+        },
+        case dict.get(m.metadata, r.series_id) {
+          Error(_) ->
+            html.div(
+              [attribute.class("flex gap-1 mt-1 animate-pulse")],
+              list.repeat(
+                html.div([attribute.class("h-4 w-12 rounded-full bg-zinc-800")], []),
+                3,
+              ),
+            )
+          Ok(meta) ->
+            html.div([attribute.class("flex flex-wrap gap-1 mt-1")], [
+              tag.list(list.take(list.append(meta.tags, meta.genres), 5)),
+            ])
+        },
+      ]),
+      case dict.get(m.metadata, r.series_id) {
+        Error(_) -> element.none()
+        Ok(meta) ->
+          case meta.age_rating {
+            series.NotApplicable | series.UnknownRating -> element.none()
+            rating ->
+              html.span(
                 [
                   attribute.class(
-                    "text-xs font-semibold text-zinc-400 uppercase tracking-wider",
+                    "shrink-0 self-start text-xs font-bold px-1.5 py-0.5 rounded "
+                    <> series_elements.age_rating_color(rating),
                   ),
                 ],
-                [element.text("Tags")],
-              ),
-              html.div(
-                [attribute.class("max-h-64 overflow-y-auto flex flex-col gap-1")],
-                list.map(tags, fn(t) {
-                  let active = list.contains(m.active_tags, t.id)
-                  html.button(
-                    [
-                      attribute.class(case active {
-                        True ->
-                          "text-xs text-left px-2 py-0.5 rounded bg-violet-500 text-white w-fit"
-                        False ->
-                          "text-xs text-left px-2 py-0.5 rounded bg-zinc-700 text-zinc-300 hover:bg-zinc-600 w-fit"
-                      }),
-                      event.on_click(ToggleTag(t.id)),
-                    ],
-                    [element.text(t.title)],
-                  )
-                }),
-              ),
-            ],
-          )
+                [element.text(series_elements.age_rating_label(rating))],
+              )
+          }
       },
     ],
   )
@@ -345,43 +458,65 @@ fn filters_panel(
 fn view(m: Model) {
   let results = filtered_results(m)
   let avail_tags = available_tags(m)
+  let has_filters =
+    m.active_age_rating != option.None || !list.is_empty(m.active_tags)
 
   html.div(
-    [attribute.class("space-y-4")],
+    [attribute.class("flex flex-col flex-1 gap-4")],
     [
-      html.h1(
-        [attribute.class("text-xl font-bold text-zinc-200")],
-        [
-          case string.is_empty(m.query) {
-            True -> element.text("Search")
-            False -> element.text("Results for \"" <> m.query <> "\"")
-          },
-        ],
-      ),
+      search_bar(m),
       case m.loading {
         True -> spinner()
         False ->
-          html.div(
-            [attribute.class("flex flex-col md:flex-row gap-6")],
-            [
-              filters_panel(m, avail_tags),
-              case results {
-                [] -> empty_state(m.query)
-                _ ->
-                  html.div(
-                    [attribute.class("flex-1 flex flex-wrap gap-4")],
-                    list.map(results, fn(r) {
-                      series_el.card(series.SeriesMinimal(
-                        id: r.series_id,
-                        name: r.name,
-                        localized_name: r.localized_name,
-                        created: date.new(""),
-                      ))
-                    }),
-                  )
-              },
-            ],
-          )
+          html.div([attribute.class("flex flex-col md:flex-row flex-1 gap-6")], [
+            html.div([attribute.class("md:w-48 shrink-0 space-y-3")], [
+              html.button(
+                [
+                  attribute.class(
+                    "md:hidden flex items-center gap-2 text-sm font-medium transition-colors "
+                    <> case has_filters {
+                      True -> "text-violet-400"
+                      False -> "text-zinc-400 hover:text-zinc-200"
+                    },
+                  ),
+                  event.on_click(ToggleFilters),
+                ],
+                [
+                  html.i([attribute.class("ph ph-[funnel]")], []),
+                  element.text(case has_filters {
+                    True -> "Filters (active)"
+                    False -> "Filters"
+                  }),
+                  html.i(
+                    [
+                      attribute.class(case m.show_filters {
+                        True -> "ph ph-[caret-up] text-xs"
+                        False -> "ph ph-[caret-down] text-xs"
+                      }),
+                    ],
+                    [],
+                  ),
+                ],
+              ),
+              html.div(
+                [
+                  attribute.class(case m.show_filters {
+                    True -> "md:block"
+                    False -> "hidden md:block"
+                  }),
+                ],
+                [filters_panel(m, avail_tags)],
+              ),
+            ]),
+            case results {
+              [] -> empty_state(m.query)
+              _ ->
+                html.div(
+                  [attribute.class("flex-1 flex flex-col gap-2")],
+                  list.map(results, result_row(m, _)),
+                )
+            },
+          ])
       },
     ],
   )

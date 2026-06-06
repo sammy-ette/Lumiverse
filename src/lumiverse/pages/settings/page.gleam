@@ -2,6 +2,7 @@ import gleam/list
 import lumiverse/pages/settings/auth_keys
 import lumiverse/pages/settings/library
 import lumiverse/pages/settings/oidc
+import lumiverse/pages/settings/users
 import lustre
 import lustre/attribute
 import lustre/effect
@@ -22,6 +23,7 @@ pub fn register() {
   let assert Ok(_) = auth_keys.register()
   let assert Ok(_) = library.register()
   let assert Ok(_) = oidc.register()
+  let assert Ok(_) = users.register()
 
   let app = lustre.component(init, update, view, [])
   lustre.register(app, "settings-page")
@@ -67,6 +69,7 @@ fn view(m: Model) {
       "Library" -> library.element()
       "OIDC" -> oidc.element()
       "Auth Keys" -> auth_keys.element()
+      "Users" -> users.element()
       _ -> element.none()
     },
   ])
@@ -84,10 +87,9 @@ fn section(m: Model, title: String) {
       [
         html.i(
           [
-            attribute.class("text-2xl ph "),
             case m.collapsed |> list.contains(title) {
-              True -> attribute.class("ph-caret-right")
-              False -> attribute.class("ph-caret-down")
+              True -> attribute.class("ph ph-[caret-right] text-2xl")
+              False -> attribute.class("ph ph-[caret-down] text-2xl")
             },
           ],
           [],
@@ -101,7 +103,7 @@ fn section(m: Model, title: String) {
         html.div(
           [attribute.class("pl-8 flex flex-col gap-2")],
           case title {
-            "Server" -> ["Library", "OIDC", "Auth Keys"]
+            "Server" -> ["Library", "OIDC", "Auth Keys", "Users"]
             _ -> []
           }
             |> list.map(fn(subsection) {

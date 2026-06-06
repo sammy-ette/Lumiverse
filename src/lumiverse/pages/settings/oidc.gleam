@@ -10,6 +10,7 @@ import lumiverse/api/series
 import lumiverse/api/settings
 import lumiverse/elements/button
 import lumiverse/elements/input
+import lumiverse/elements/series as series_element
 import lustre
 import lustre/attribute
 import lustre/effect
@@ -63,12 +64,18 @@ fn oidc_form() {
       "disable_password_auth",
       form.parse_checkbox,
     )
-    use provision_accounts <- form.field("provision_accounts", form.parse_checkbox)
+    use provision_accounts <- form.field(
+      "provision_accounts",
+      form.parse_checkbox,
+    )
     use require_verified_email <- form.field(
       "require_verified_email",
       form.parse_checkbox,
     )
-    use sync_user_settings <- form.field("sync_user_settings", form.parse_checkbox)
+    use sync_user_settings <- form.field(
+      "sync_user_settings",
+      form.parse_checkbox,
+    )
     use provider_name <- form.field("provider_name", form.parse_string)
     use authority <- form.field("authority", form.parse_string)
     use client_id <- form.field("client_id", form.parse_string)
@@ -129,11 +136,7 @@ pub fn element() {
 
 fn init(_) {
   #(
-    Model(
-      server_settings: option.None,
-      libraries: [],
-      form: oidc_form(),
-    ),
+    Model(server_settings: option.None, libraries: [], form: oidc_form()),
     effect.batch([
       settings.get(SettingsRetrieved),
       library.all(LibrariesRetrieved),
@@ -147,8 +150,14 @@ fn update(m: Model, msg: Msg) {
       Model(..m, server_settings: option.Some(s)),
       effect.none(),
     )
-    SettingsRetrieved(Error(_)) -> #(m, toast("Failed to load settings", "error"))
-    LibrariesRetrieved(Ok(libs)) -> #(Model(..m, libraries: libs), effect.none())
+    SettingsRetrieved(Error(_)) -> #(
+      m,
+      toast("Failed to load settings", "error"),
+    )
+    LibrariesRetrieved(Ok(libs)) -> #(
+      Model(..m, libraries: libs),
+      effect.none(),
+    )
     LibrariesRetrieved(Error(_)) -> #(m, effect.none())
     FormSubmitted(Ok(f)) -> {
       let assert option.Some(s) = m.server_settings
@@ -199,7 +208,8 @@ fn update(m: Model, msg: Msg) {
             scopes -> scopes
           },
         )
-      let updated_settings = settings.ServerSettings(..s, oidc_config: updated_oidc)
+      let updated_settings =
+        settings.ServerSettings(..s, oidc_config: updated_oidc)
       #(m, settings.save(updated_settings, Saved))
     }
     FormSubmitted(Error(f)) -> #(Model(..m, form: f), effect.none())
@@ -274,7 +284,11 @@ fn form_view(m: Model, s: settings.ServerSettings) {
         ]),
       ]),
       section("Provisioning", [
-        form_toggle("Auto Create Linked Accounts", "provision_accounts", oidc.provision_accounts),
+        form_toggle(
+          "Auto Create Linked Accounts",
+          "provision_accounts",
+          oidc.provision_accounts,
+        ),
         form_toggle(
           "Require Verified Email",
           "require_verified_email",
@@ -336,9 +350,10 @@ fn form_view(m: Model, s: settings.ServerSettings) {
                         attribute.type_("checkbox"),
                         attribute.name("default_libraries"),
                         attribute.value(val),
-                        attribute.checked(
-                          list.contains(oidc.default_libraries, lib.id),
-                        ),
+                        attribute.checked(list.contains(
+                          oidc.default_libraries,
+                          lib.id,
+                        )),
                         attribute.class(
                           "accent-violet-500 w-4 h-4 cursor-pointer",
                         ),
@@ -373,7 +388,7 @@ fn form_view(m: Model, s: settings.ServerSettings) {
                     == oidc.default_age_restriction,
                   ),
                 ],
-                series.age_rating_label(rating),
+                series_element.age_rating_label(rating),
               )
             }),
           ),
@@ -409,9 +424,16 @@ fn form_view(m: Model, s: settings.ServerSettings) {
 
 fn section(title: String, children: List(element.Element(Msg))) {
   html.div([attribute.class("space-y-4")], [
-    html.h2([attribute.class("text-xl font-semibold text-zinc-200 border-b border-zinc-700 pb-2")], [
-      element.text(title),
-    ]),
+    html.h2(
+      [
+        attribute.class(
+          "text-xl font-semibold text-zinc-200 border-b border-zinc-700 pb-2",
+        ),
+      ],
+      [
+        element.text(title),
+      ],
+    ),
     html.div([attribute.class("space-y-4")], children),
   ])
 }
@@ -438,7 +460,9 @@ fn form_toggle(label: String, name: String, checked: Bool) {
         ],
         [],
       ),
-      html.span([attribute.class("text-sm text-zinc-300")], [element.text(label)]),
+      html.span([attribute.class("text-sm text-zinc-300")], [
+        element.text(label),
+      ]),
     ],
   )
 }

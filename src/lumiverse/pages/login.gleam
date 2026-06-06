@@ -68,13 +68,7 @@ fn login_form() {
 }
 
 fn init(_) {
-  #(
-    Model(oidc_config: option.None, form: login_form()),
-    case localstorage.read("server_url") {
-      Error(_) -> effect.none()
-      _ -> api.oidc(OIDCConfig)
-    },
-  )
+  #(Model(oidc_config: option.None, form: login_form()), api.oidc(OIDCConfig))
 }
 
 fn update(m: Model, msg: Msg) {
@@ -131,8 +125,7 @@ fn view(m: Model) {
     |> LoginSubmitted
   }
 
-  let field_class =
-    "w-full px-3 py-2 border-b-5 border-zinc-700 focus:border-violet-600"
+  let field_class = "w-full"
 
   container([
     html.small(
@@ -205,9 +198,9 @@ fn view(m: Model) {
             False -> element.none()
             True ->
               html.a([attribute.href(router.direct("/oidc/login"))], [
-                button.button(oidc.provider_name, [
+                button.button("Log in with " <> oidc.provider_name, [
                   button.secondary(),
-                  attribute.class("w-full"),
+                  attribute.class("w-full py-3 text-base font-semibold"),
                 ]),
               ])
           },
@@ -218,7 +211,6 @@ fn view(m: Model) {
 
 fn container(contents: List(element.Element(a))) -> element.Element(a) {
   html.div([attribute.class("h-screen w-screen flex")], [
-    html.div([attribute.class("w-1 bg-violet-500 shrink-0")], []),
     html.main(
       [attribute.class("flex-1 flex flex-col justify-center items-center")],
       [

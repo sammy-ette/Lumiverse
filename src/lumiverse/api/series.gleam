@@ -6,6 +6,7 @@ import gleam/option
 import gleam/result
 import lumiverse/api/api
 import lumiverse/api/fetch
+import lumiverse/api/filter
 import plinth/javascript/date
 
 pub type Series {
@@ -351,34 +352,6 @@ pub fn age_rating_to_int(rating: AgeRating) -> Int {
   }
 }
 
-pub fn age_rating_from_int(n: Int) -> AgeRating {
-  case n {
-    -1 -> NotApplicable
-    1 -> RatingPending
-    2 -> EarlyChildhood
-    3 | 4 -> Everyone
-    5 | 6 | 7 -> Everyone10Plus
-    8 -> Teen
-    9 | 10 | 11 -> Mature17Plus
-    r if r >= 12 -> AdultsOnly
-    _ -> UnknownRating
-  }
-}
-
-pub fn age_rating_label(rating: AgeRating) -> String {
-  case rating {
-    NotApplicable -> "Not Applicable"
-    UnknownRating -> "Unknown"
-    RatingPending -> "Rating Pending"
-    EarlyChildhood -> "Early Childhood"
-    Everyone -> "Everyone"
-    Everyone10Plus -> "Everyone 10+"
-    Teen -> "Teen"
-    Mature17Plus -> "Mature (17+)"
-    AdultsOnly -> "Adults Only"
-  }
-}
-
 pub fn all_age_ratings() -> List(AgeRating) {
   [
     UnknownRating,
@@ -429,17 +402,6 @@ fn dynamic_publication(
         _ -> Error(Unknown)
       }
     Error(_) -> Error(Invalid)
-  }
-}
-
-pub fn publication_title(publication: Publication) -> String {
-  case publication {
-    Ongoing -> "ongoing"
-    Hiatus -> "hiatus"
-    Completed -> "completed"
-    Cancelled -> "cancelled"
-    Ended -> "ended"
-    _ -> "unknown"
   }
 }
 
@@ -543,8 +505,64 @@ fn time_decoder() -> decode.Decoder(Time) {
 
 pub fn time_left(series_id: Int, resp: api.Response(Time, a)) {
   fetch.get(
-    "/api/series/time-left?seriesId=" <> int.to_string(series_id),
+    "/api/reader/time-left?seriesId=" <> int.to_string(series_id),
     time_decoder(),
     resp,
   )
+}
+
+pub fn genres(resp: api.Response(List(Tag), a)) {
+  fetch.get("/api/metadata/genres", decode.list(tag_decoder()), resp)
+}
+
+pub fn publication_to_string(p: Publication) -> String {
+  case p {
+    Ongoing -> "0"
+    Hiatus -> "1"
+    Completed -> "2"
+    Cancelled -> "3"
+    Ended -> "4"
+    Unknown | Invalid -> "5"
+  }
+}
+
+pub fn all(
+  sort_field: filter.SortField,
+  ascending: Bool,
+  statements: List(filter.Statement),
+  combination: filter.Combination,
+  page: Int,
+  resp: api.Response(List(SeriesMinimal), a),
+) {
+  fetch.post(
+    "/api/series/all-v2?pageNumber=" <> int.to_string(page) <> "&pageSize=30",
+    filter.encode_smart_filter(filter.SmartFilter(
+      id: 0,
+      name: "",
+      statements:,
+      combination:,
+      sort_options: filter.SortOptions(sort_field:, ascending:),
+      limit_to: 0,
+      for_dashboard: False,
+      order: 0,
+      entity_type: filter.Series,
+    )),
+    decode.list(minimal_decoder()),
+    resp,
+  )
+}
+
+pub fn publication_label(p: Publication) -> String {
+  case p {
+    Ongoing -> "Ongoing"
+    Hiatus -> "Hiatus"
+    Completed -> "Completed"
+    Cancelled -> "Cancelled"
+    Ended -> "Ended"
+    Unknown | Invalid -> "Unknown"
+  }
+}
+
+pub fn all_publications() -> List(Publication) {
+  [Ongoing, Completed, Hiatus, Cancelled, Ended]
 }
