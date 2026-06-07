@@ -12,6 +12,24 @@ pub fn event_key(event: a) -> String
 @external(javascript, "./reader_ffi.mjs", "scrollBy")
 pub fn do_scroll_by(amount: Int) -> Nil
 
+@external(javascript, "./reader_ffi.mjs", "windowScrollTo")
+pub fn window_scroll_to(y: Float) -> Nil
+
+@external(javascript, "./reader_ffi.mjs", "captureWindowScroll")
+pub fn capture_window_scroll() -> Nil
+
+@external(javascript, "./reader_ffi.mjs", "captureElementScroll")
+pub fn capture_element_scroll() -> Nil
+
+@external(javascript, "./reader_ffi.mjs", "applyScrollToElement")
+pub fn apply_scroll_to_element() -> Nil
+
+@external(javascript, "./reader_ffi.mjs", "applyScrollToWindow")
+pub fn apply_scroll_to_window() -> Nil
+
+@external(javascript, "./reader_ffi.mjs", "observeLazyImages")
+pub fn observe_lazy_images() -> Nil
+
 pub fn range(from: Int, to: Int) -> List(Int) {
   case from > to {
     True -> []

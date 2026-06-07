@@ -1,5 +1,4 @@
 import gleam/bool
-import gleam/dynamic/decode
 import gleam/float
 import gleam/int
 import gleam/javascript/array
@@ -104,6 +103,12 @@ pub fn init(_) {
         })
         Nil
       }),
+      effect.from(fn(dispatch) {
+        document.add_event_listener("scroll", fn(_) {
+          dispatch(model.LongStripScroll)
+        })
+        Nil
+      }),
     ]),
   )
 }
@@ -148,6 +153,10 @@ fn apply_chapter_info(
         model.NextChapter,
       ),
       series.metadata(chapter_info.series_id, model.SeriesMetadataRetrieved),
+      case m.reading_mode {
+        model.LongStrip -> effect.from(fn(_) { utils.observe_lazy_images() })
+        model.PageByPage -> effect.none()
+      },
     ]),
   )
 }
@@ -207,7 +216,7 @@ pub fn update(m: model.Model, msg: model.Msg) {
       case is_manhwa, m.reading_mode {
         True, model.PageByPage -> #(
           model.Model(..m, reading_mode: model.LongStrip),
-          effect.none(),
+          effect.from(fn(_) { utils.observe_lazy_images() }),
         )
         _, _ -> #(m, effect.none())
       }
@@ -327,6 +336,19 @@ pub fn update(m: model.Model, msg: model.Msg) {
         Error(_) -> #(model.Model(..m, editing_page: False), effect.none())
         Ok(n) -> update(m, model.GoToPage(n - 1))
       }
+    model.EndStrip -> {
+      let assert option.Some(cont_point) = m.cont_point
+      let assert option.Some(Ok(current_progress)) = m.progress
+      let finished_progress =
+        reader.Progress(..current_progress, page_number: cont_point.pages)
+      #(
+        model.Model(..m, progress: option.Some(Ok(finished_progress))),
+        effect.batch([
+          reader.save_progress(finished_progress, model.ProgressUpdate),
+          effect.from(fn(_) { utils.window_scroll_to(0.0) }),
+        ]),
+      )
+    }
     model.ProgressUpdate(Ok(Nil)) -> {
       let assert option.Some(cont_point) = m.cont_point
       let assert option.Some(Ok(current_progress)) = m.progress
@@ -366,6 +388,7 @@ pub fn update(m: model.Model, msg: model.Msg) {
         False -> #(
           model.Model(..m, zen: True),
           effect.from(fn(_) {
+            utils.capture_window_scroll()
             let assert Ok(host) =
               document.get_elements_by_tag_name("reader-page")
               |> array.get(0)
@@ -379,6 +402,7 @@ pub fn update(m: model.Model, msg: model.Msg) {
         True -> #(
           model.Model(..m, zen: False),
           effect.from(fn(_) {
+            utils.capture_element_scroll()
             let _ = document.exit_fullscreen(window.document(window.self()))
             Nil
           }),
@@ -387,7 +411,12 @@ pub fn update(m: model.Model, msg: model.Msg) {
     }
     model.SyncZen(is_fullscreen) -> #(
       model.Model(..m, zen: is_fullscreen),
-      effect.none(),
+      effect.from(fn(_) {
+        case is_fullscreen {
+          True -> utils.apply_scroll_to_element()
+          False -> utils.apply_scroll_to_window()
+        }
+      }),
     )
     model.ScrollUp -> #(
       m,
@@ -401,26 +430,41 @@ pub fn update(m: model.Model, msg: model.Msg) {
       model.Model(..m, scrubber_hovered: hovered),
       effect.none(),
     )
-    model.LongStripScroll -> {
-      let assert Ok(host) =
-        document.get_elements_by_tag_name("reader-page")
-        |> array.get(0)
-      let assert Ok(root) = shadow.shadow_root(host)
-      let assert Ok(reader_div) = shadow.query_selector(root, "#reader-content")
+    model.LongStripScroll if m.reading_mode == model.LongStrip -> {
+      let #(scroll_top, scroll_height, client_height) = case m.zen {
+        True -> {
+          let assert Ok(host) =
+            document.get_elements_by_tag_name("reader-page")
+            |> array.get(0)
+          let assert Ok(root) = shadow.shadow_root(host)
+          let assert Ok(reader_div) =
+            shadow.query_selector(root, "#reader-content")
+          #(
+            plinth_element.scroll_top(reader_div),
+            plinth_element.scroll_height(reader_div),
+            plinth_element.client_height(reader_div) |> int.to_float,
+          )
+        }
+        False -> {
+          let win = window.self()
+          #(
+            window.scroll_y(win) |> int.to_float,
+            document.body() |> plinth_element.scroll_height,
+            window.inner_height(win) |> int.to_float,
+          )
+        }
+      }
 
-      let scroll_height = reader_div |> plinth_element.scroll_height
-      let scroll_top = reader_div |> plinth_element.scroll_top
-      let client_height = reader_div |> plinth_element.client_height
-
-      echo scroll_top +. { client_height |> int.to_float }
-      echo scroll_height
-
-      case
-        scroll_top +. { client_height |> int.to_float }
-        >=. scroll_height -. 100.0
-      {
+      let pages = case m.chapter_info {
+        option.Some(info) -> info.pages
+        option.None -> 0
+      }
+      case scroll_top +. client_height >=. scroll_height -. 100.0 {
         True -> #(
-          model.Model(..m, strip_loaded: m.strip_loaded + 10),
+          model.Model(
+            ..m,
+            strip_loaded: m.strip_loaded + 10 |> int.clamp(0, pages - 1),
+          ),
           effect.none(),
         )
         False -> #(m, effect.none())

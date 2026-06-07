@@ -3,13 +3,13 @@ import gleam/int
 import gleam/json
 import gleam/list
 import localstorage
-import lumiverse/elements/button
+import lumiverse/elements/panel
 import lumiverse/pages/reader/model
+import lumiverse/pages/reader/utils
 import lustre/attribute
 import lustre/effect
 import lustre/element
 import lustre/element/html
-import lustre/event
 
 pub fn default_prefs() -> model.ReaderPrefs {
   model.ReaderPrefs(
@@ -137,7 +137,10 @@ pub fn update(
     }
     model.SetReadingMode(reading_mode) -> #(
       model.Model(..m, reading_mode:),
-      effect.none(),
+      case reading_mode {
+        model.LongStrip -> effect.from(fn(_) { utils.observe_lazy_images() })
+        model.PageByPage -> effect.none()
+      },
     )
     _ -> #(m, effect.none())
   }
@@ -151,87 +154,40 @@ pub fn panel(m: model.Model) {
 }
 
 fn view(m: model.Model) {
-  html.div(
-    [
-      attribute.class(
-        "fixed flex justify-center items-center inset-0 z-50 bg-zinc-950/80",
-      ),
-    ],
-    [
-      html.div(
-        [
-          attribute.class(
-            "animate-enter-from-bottom bg-zinc-900 sm:border border-zinc-700 sm:rounded-xl flex max-sm:flex-col overflow-hidden w-full max-sm:h-full sm:w-[640px]",
-          ),
-        ],
-        [
-          html.div(
-            [
-              attribute.class(
-                "sm:w-44 sm:border-r border-zinc-700 flex sm:flex-col gap-1 p-3 pt-4 shrink-0",
-              ),
-            ],
-            [model.PageLayout]
-              |> list.map(fn(s) { section_btn(s, m.settings_section) }),
-          ),
-          html.div([attribute.class("flex-1 flex flex-col min-w-0")], [
-            html.div(
-              [
-                attribute.class(
-                  "flex items-center justify-between px-6 py-4 border-b border-zinc-700",
-                ),
-              ],
-              [
-                html.h2([attribute.class("font-semibold text-white")], [
-                  element.text("Reader Settings"),
-                ]),
-                button.icon("ph ph-[x]", "Close settings", [
-                  button.ghost(),
-                  event.on_click(model.ToggleSettings),
-                ]),
-              ],
-            ),
-            html.div([attribute.class("p-6 space-y-6 overflow-y-auto")], [
-              case m.settings_section {
-                model.PageLayout -> page_layout_section(m)
-                model.Header -> element.none()
-                model.Keybinds -> element.none()
-              },
-            ]),
-          ]),
-        ],
-      ),
-    ],
+  panel.shell(
+    [model.PageLayout]
+      |> list.map(fn(s) {
+        panel.section_btn(section_label(s), s == m.settings_section, model.SwitchSection(s))
+      }),
+    "Reader Settings",
+    model.ToggleSettings,
+    case m.settings_section {
+      model.PageLayout -> page_layout_section(m)
+      model.Header -> element.none()
+      model.Keybinds -> element.none()
+    },
   )
 }
 
-fn section_btn(section: model.SettingsSection, active: model.SettingsSection) {
-  let label = case section {
+fn section_label(section: model.SettingsSection) -> String {
+  case section {
     model.PageLayout -> "Page Layout"
     model.Header -> "Header"
     model.Keybinds -> "Keybinds"
   }
-  button.button(label, [
-    event.on_click(model.SwitchSection(section)),
-    attribute.class("w-full text-left font-normal px-3 py-2"),
-    case section == active {
-      True -> attribute.class("bg-violet-500/20 text-violet-400")
-      False -> attribute.class("text-zinc-400 hover:bg-zinc-800")
-    },
-  ])
 }
 
 fn page_layout_section(m: model.Model) {
   html.div([attribute.class("space-y-6")], [
-    settings_group("PAGE DISPLAY STYLE", [
+    panel.group("PAGE DISPLAY STYLE", [
       html.div([attribute.class("flex gap-3")], [
-        display_style_card(
+        panel.display_style_card(
           "Single Page",
           m.reading_mode == model.PageByPage,
           single_page_icon(m.reading_mode == model.PageByPage),
           model.SetReadingMode(model.PageByPage),
         ),
-        display_style_card(
+        panel.display_style_card(
           "Long Strip",
           m.reading_mode == model.LongStrip,
           long_strip_icon(m.reading_mode == model.LongStrip),
@@ -239,33 +195,33 @@ fn page_layout_section(m: model.Model) {
         ),
       ]),
     ]),
-    settings_group("IMAGE FIT", [
+    panel.group("IMAGE FIT", [
       html.div([attribute.class("flex gap-2 flex-wrap")], [
-        option_btn(
+        panel.option_btn(
           "Fit Width",
           m.prefs.fit_mode == model.FitWidth,
           model.SetFitMode(model.FitWidth),
         ),
-        option_btn(
+        panel.option_btn(
           "Fit Height",
           m.prefs.fit_mode == model.FitHeight,
           model.SetFitMode(model.FitHeight),
         ),
-        option_btn(
+        panel.option_btn(
           "Natural Size",
           m.prefs.fit_mode == model.Original,
           model.SetFitMode(model.Original),
         ),
       ]),
     ]),
-    settings_group("READING DIRECTION", [
+    panel.group("READING DIRECTION", [
       html.div([attribute.class("flex gap-2 flex-wrap")], [
-        option_btn(
+        panel.option_btn(
           "Left to Right",
           m.prefs.direction == model.LTR,
           model.SetDirection(model.LTR),
         ),
-        option_btn(
+        panel.option_btn(
           "Right to Left",
           m.prefs.direction == model.RTL,
           model.SetDirection(model.RTL),
@@ -273,56 +229,6 @@ fn page_layout_section(m: model.Model) {
       ]),
     ]),
   ])
-}
-
-fn settings_group(
-  title: String,
-  children: List(element.Element(model.Msg)),
-) -> element.Element(model.Msg) {
-  html.div([attribute.class("space-y-3")], [
-    html.p(
-      [
-        attribute.class(
-          "text-xs text-zinc-500 uppercase tracking-wider font-medium",
-        ),
-      ],
-      [element.text(title)],
-    ),
-    ..children
-  ])
-}
-
-fn display_style_card(
-  label: String,
-  active: Bool,
-  icon: element.Element(model.Msg),
-  msg: model.Msg,
-) {
-  html.button(
-    [
-      attribute.class(
-        "flex flex-col items-center justify-center gap-3 p-4 rounded-xl border w-28 h-28 cursor-pointer transition-colors",
-      ),
-      case active {
-        True -> attribute.class("border-violet-500 bg-violet-500/10")
-        False ->
-          attribute.class("border-zinc-700 bg-zinc-800 hover:border-zinc-500")
-      },
-      event.on_click(msg),
-    ],
-    [
-      icon,
-      html.span(
-        [
-          attribute.class(case active {
-            True -> "text-xs text-violet-400 font-medium"
-            False -> "text-xs text-zinc-400"
-          }),
-        ],
-        [element.text(label)],
-      ),
-    ],
-  )
 }
 
 fn single_page_icon(active: Bool) {
@@ -346,33 +252,6 @@ fn long_strip_icon(active: Bool) {
       html.div([attribute.class("w-10 h-[9px] rounded " <> color)], []),
       html.div([attribute.class("w-10 h-[9px] rounded " <> color)], []),
       html.div([attribute.class("w-10 h-[9px] rounded " <> color)], []),
-    ],
-  )
-}
-
-fn option_btn(label: String, active: Bool, msg: model.Msg) {
-  let base =
-    "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm cursor-pointer transition-colors outline-none"
-  html.button(
-    [
-      attribute.class(base),
-      case active {
-        True ->
-          attribute.class("bg-violet-500/20 border-violet-500 text-violet-400")
-        False ->
-          attribute.class(
-            "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700",
-          )
-      },
-      event.on_click(msg),
-    ],
-    [
-      case active {
-        True ->
-          html.i([attribute.class("ph ph-[check] text-violet-400 text-xs")], [])
-        False -> element.none()
-      },
-      element.text(label),
     ],
   )
 }

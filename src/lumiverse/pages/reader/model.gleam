@@ -64,6 +64,7 @@ pub type Msg {
   ID(Int)
   Next
   Previous
+  EndStrip
   NavigateRight
   NavigateLeft
   GoToPage(Int)

@@ -23,7 +23,7 @@ import lumiverse/pages/login
 import lumiverse/pages/preferences
 import lumiverse/pages/reader/page as reader
 import lumiverse/pages/search
-import lumiverse/pages/series
+import lumiverse/pages/series/page as series
 import lumiverse/pages/settings/page as settings
 import lumiverse/pages/setup
 import lumiverse/toasts

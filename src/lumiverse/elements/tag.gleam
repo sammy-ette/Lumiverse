@@ -99,7 +99,7 @@ pub fn single(tag: series.Tag, attrs: List(attribute.Attribute(a))) {
   case classify(tag.title) {
     StaffPick ->
       element([color(tag.title), ..attrs], [
-        html.i([attribute.class("ph-[star--fill]")], []),
+        html.i([attribute.class("ph ph-[star--fill]")], []),
         element.text(tag.title),
       ])
     _ -> simple(tag.title |> string.capitalise, [color(tag.title), ..attrs])
@@ -206,6 +206,10 @@ fn tag_in_list(tag: String, lst: List(String)) -> Bool {
 
 pub fn sort(tags: List(series.Tag)) {
   list.sort(tags, compare)
+}
+
+pub fn sort_reverse(tags: List(series.Tag)) {
+  list.sort(tags, compare |> order.reverse)
 }
 
 pub fn compare(a: series.Tag, b: series.Tag) -> order.Order {

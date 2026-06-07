@@ -566,3 +566,37 @@ pub fn publication_label(p: Publication) -> String {
 pub fn all_publications() -> List(Publication) {
   [Ongoing, Completed, Hiatus, Cancelled, Ended]
 }
+
+pub fn mark_volume_read(
+  series_id: Int,
+  volume_id: Int,
+  as_session: Bool,
+  resp: api.Response(Nil, a),
+) {
+  fetch.post_empty(
+    "/api/reader/mark-volume-read",
+    json.object([
+      #("seriesId", json.int(series_id)),
+      #("volumeId", json.int(volume_id)),
+      #("generateReadingSession", json.bool(as_session)),
+    ]),
+    resp,
+  )
+}
+
+pub fn mark_chapter_read(
+  series_id: Int,
+  chapter_id: Int,
+  as_session: Bool,
+  resp: api.Response(Nil, a),
+) {
+  fetch.post_empty(
+    "/api/reader/mark-chapter-read",
+    json.object([
+      #("seriesId", json.int(series_id)),
+      #("chapterId", json.int(chapter_id)),
+      #("generateReadingSession", json.bool(as_session)),
+    ]),
+    resp,
+  )
+}

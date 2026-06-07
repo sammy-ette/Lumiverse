@@ -2,7 +2,7 @@ import lustre/attribute
 import lustre/element
 import lustre/element/html
 
-fn render(
+pub fn render(
   children: List(element.Element(msg)),
   attrs: List(attribute.Attribute(msg)),
 ) -> element.Element(msg) {
