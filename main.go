@@ -36,6 +36,7 @@ var (
 	// Static assets loaded at startup
 	cssBytes  []byte
 	jsBytes   []byte
+	svgBytes  []byte
 	swVersion string
 )
 
@@ -394,6 +395,10 @@ func loadAssets() {
 	if err != nil {
 		log.Fatal("could not read lumiverse.js: %v", err)
 	}
+	svgBytes, err = os.ReadFile("./dist/lumiverse.svg")
+	if err != nil {
+		log.Fatal("could not read lumiverse.svg: %v", err)
+	}
 
 	// Compute version hash from JS+CSS for Service Worker cache busting.
 	// Changes automatically on every deploy without manual bumping.
@@ -492,6 +497,7 @@ func main() {
 
 	app.Get("/lumiverse.css", etag.New(), serveMemory(cssBytes, "text/css; charset=utf-8"))
 	app.Get("/lumiverse.js", etag.New(), serveMemory(jsBytes, "application/javascript; charset=utf-8"))
+	app.Get("/lumiverse.svg", etag.New(), serveMemory(svgBytes, "image/svg+xml"))
 
 	app.Get("/sw.js", func(c fiber.Ctx) error {
 		swData, err := os.ReadFile("./sw.js")
