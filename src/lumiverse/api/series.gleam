@@ -535,7 +535,7 @@ pub fn all(
   resp: api.Response(List(SeriesMinimal), a),
 ) {
   fetch.post(
-    "/api/series/all-v2?pageNumber=" <> int.to_string(page) <> "&pageSize=30",
+    "/api/series/all-v2?pageNumber=" <> int.to_string(page) <> "&pageSize=31",
     filter.encode_smart_filter(filter.SmartFilter(
       id: 0,
       name: "",
