@@ -303,7 +303,11 @@ fn loading_display(srs: option.Option(series.Series)) {
                 ),
               ),
               html.div(
-                [attribute.class("h-3.5 w-24 bg-zinc-800 rounded animate-pulse")],
+                [
+                  attribute.class(
+                    "h-3.5 w-24 bg-zinc-800 rounded animate-pulse",
+                  ),
+                ],
                 [],
               ),
             ],
@@ -613,6 +617,7 @@ fn publication_status(metadata: series.Metadata) -> element.Element(Msg) {
 }
 
 fn about_section(metadata: series.Metadata) -> element.Element(Msg) {
+  let parsed = parse_summary(metadata.summary)
   html.div([attribute.class("space-y-3")], [
     html.div([attribute.class("flex items-center gap-3")], [
       html.h2(
@@ -628,10 +633,98 @@ fn about_section(metadata: series.Metadata) -> element.Element(Msg) {
         ),
       ],
       [
-        element.text(metadata.summary),
+        element.text(parsed.summary),
       ],
     ),
+    case parsed.source, parsed.note {
+      option.None, option.None -> element.none()
+      option.Some(src), option.Some(nt) ->
+        html.pre(
+          [
+            attribute.class(
+              "text-xs text-wrap font-[Poppins,sans-serif] text-zinc-600 leading-relaxed",
+            ),
+          ],
+          [
+            element.text(src),
+            element.text(" — "),
+            element.text(nt),
+          ],
+        )
+      option.Some(src), option.None ->
+        html.pre(
+          [
+            attribute.class(
+              "text-xs text-wrap font-[Poppins,sans-serif] text-zinc-600 leading-relaxed",
+            ),
+          ],
+          [
+            element.text(src),
+          ],
+        )
+      option.None, option.Some(nt) ->
+        html.pre(
+          [
+            attribute.class(
+              "text-xs text-wrap font-[Poppins,sans-serif] text-zinc-600 italic leading-relaxed",
+            ),
+          ],
+          [
+            element.text(nt),
+          ],
+        )
+    },
   ])
+}
+
+type ParsedSummary {
+  ParsedSummary(
+    summary: String,
+    source: option.Option(String),
+    note: option.Option(String),
+  )
+}
+
+fn parse_summary(text: String) -> ParsedSummary {
+  let lines = string.split(text, "\n")
+  let source_match = "(Source: "
+  let note_match = "*Note: "
+
+  let #(summary_lines, extras) =
+    list.fold(lines, #([], []), fn(acc, line) {
+      let #(summ, extr) = acc
+      case
+        string.starts_with(line, source_match)
+        || string.starts_with(line, note_match)
+      {
+        True -> #(summ, list.append(extr, [line]))
+        False -> #(list.append(summ, [line]), extr)
+      }
+    })
+
+  let summary = string.join(summary_lines, "\n") |> string.trim
+  let source = case
+    list.find(extras, fn(line) { string.starts_with(line, source_match) })
+  {
+    Ok(src) ->
+      src
+      |> string.drop_start(1)
+      |> string.drop_end(1)
+      |> option.Some
+    Error(_) -> option.None
+  }
+  let note = case
+    list.find(extras, fn(line) { string.starts_with(line, note_match) })
+  {
+    Ok(nt) ->
+      nt
+      |> string.drop_start(1)
+      |> string.drop_end(1)
+      |> option.Some
+    Error(_) -> option.None
+  }
+
+  ParsedSummary(summary:, source:, note:)
 }
 
 fn content_tabs(
