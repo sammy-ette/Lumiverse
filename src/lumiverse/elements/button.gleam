@@ -9,7 +9,7 @@ pub fn render(
   html.button(
     [
       attribute.class(
-        "outline-none transition-all duration-200 active:not-disabled:scale-[95%] rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed",
+        "outline-none transition-all duration-200 active:not-disabled:scale-[95%] rounded-lg border border-transparent text-sm disabled:opacity-40 disabled:cursor-not-allowed",
       ),
       ..attrs
     ],
@@ -87,7 +87,9 @@ pub fn primary() -> attribute.Attribute(msg) {
 }
 
 pub fn secondary() -> attribute.Attribute(msg) {
-  attribute.class("p-2.5 bg-zinc-800 hover:not-disabled:bg-zinc-700")
+  attribute.class(
+    "p-2.5 bg-zinc-900/75 border-zinc-800 hover:not-disabled:bg-zinc-700",
+  )
 }
 
 pub fn tertiary() -> attribute.Attribute(msg) {
