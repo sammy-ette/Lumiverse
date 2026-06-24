@@ -30,6 +30,12 @@ pub fn apply_scroll_to_window() -> Nil
 @external(javascript, "./reader_ffi.mjs", "observeLazyImages")
 pub fn observe_lazy_images() -> Nil
 
+@external(javascript, "./reader_ffi.mjs", "addListener")
+pub fn add_listener(type_: String, listener: fn(a) -> Nil) -> Nil
+
+@external(javascript, "./reader_ffi.mjs", "removeListeners")
+pub fn remove_listeners() -> Nil
+
 pub fn range(from: Int, to: Int) -> List(Int) {
   case from > to {
     True -> []
