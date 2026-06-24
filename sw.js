@@ -68,6 +68,7 @@ routing.registerRoute(
   ({ url, request }) =>
     url.pathname.startsWith('/api/account') ||
     url.pathname.startsWith('/api/lumiverse/') ||
+    url.pathname.startsWith('/api/health') ||
     request.method !== 'GET',
   new strategies.NetworkOnly()
 );
