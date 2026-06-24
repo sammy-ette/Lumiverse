@@ -19,8 +19,6 @@ import lustre/event
 import plinth/browser/document
 import rsvp
 
-const page_size = 50
-
 type TagState {
   TagInactive
   TagIncluded
@@ -160,11 +158,14 @@ fn do_fetch(m: Model) {
       list.append(list.append(status_stmts, rating_stmts), genre_stmts),
       tag_stmts,
     )
-  let combo = case stmts {
-    [] -> filter.And
-    _ -> filter.Or
-  }
-  series_api.all(m.sort_field, m.ascending, stmts, combo, m.page, SeriesLoaded)
+  series_api.all(
+    m.sort_field,
+    m.ascending,
+    stmts,
+    filter.And,
+    m.page,
+    SeriesLoaded,
+  )
 }
 
 fn refetch(m: Model) {
@@ -177,14 +178,18 @@ fn refetch_from_page_1(m: Model) {
 
 fn update(m: Model, msg: Msg) {
   case msg {
-    SeriesLoaded(Ok(items)) -> #(
-      Model(
-        ..m,
-        series: option.Some(Ok(items)),
-        has_more: list.length(items) == page_size,
-      ),
-      effect.none(),
-    )
+    SeriesLoaded(Ok(items)) -> {
+      let has_more = list.length(items) > 30
+      let display_items = list.take(items, 30)
+      #(
+        Model(
+          ..m,
+          series: option.Some(Ok(display_items)),
+          has_more:,
+        ),
+        effect.none(),
+      )
+    }
     SeriesLoaded(Error(e)) -> #(
       Model(..m, series: option.Some(Error(e))),
       effect.none(),
