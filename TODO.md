@@ -2,10 +2,9 @@
 
 ## Stubbed / Partial (easiest wins)
 - [x] Global search — search across series, chapters, tags, authors
-- [ ] All Series page (`/all` route) — browsable, sortable, filterable list
+- [x] All Series page (`/all` route) — browsable, sortable, filterable list
 - [ ] Smart Filter & MoreInGenre dashboard rows — types decoded but never rendered
 - [ ] Series metadata completeness — writers, publishers, characters, translators (currently empty lists)
-- [ ] Server settings section — currently a placeholder
 
 ## New Pages
 - [ ] Collections & Reading Lists — browse and manage Kavita collections
@@ -16,7 +15,6 @@
 - [ ] Keyboard shortcut help overlay — discoverable list of all shortcuts
 - [ ] Page bookmarking — Kavita API supports it
 - [ ] Double-page spread mode
-- [ ] Mobile tap zones — tap left/right edges to turn pages
 
 ## UX / Discovery
 - [ ] Series filtering & sorting — by status, genre, rating, release year
@@ -35,16 +33,13 @@
 
 ## Reader (more)
 - [ ] Chapter list panel — jump to any chapter without leaving the reader
-- [ ] Reader theme options — sepia and high-contrast modes alongside the default dark
 - [ ] Pinch-to-zoom on mobile
 - [ ] "What to read next" prompt — suggest a series after finishing one
 
 ## Admin / Library
 - [ ] Library statistics — total series, chapters, pages, storage used
-- [ ] Cover refresh / metadata re-pull — trigger from the series page
 
 ## Integrations / Platform
 - [ ] Scrobbling status UI — show AniList/MAL sync state (Kavita already tracks this)
-- [ ] New chapter notifications — alert when a reading series gets new chapters
 - [ ] PWA support — installable app with offline caching for recent chapters
 - [ ] Random series picker — "surprise me" button for when you can't decide
