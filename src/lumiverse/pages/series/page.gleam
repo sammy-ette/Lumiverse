@@ -45,7 +45,7 @@ pub fn register() {
 pub fn element(attrs: List(attribute.Attribute(a))) {
   element.element(
     "series-page",
-    [attribute.class("flex w-full flex-col p-4"), ..attrs],
+    [attribute.class("flex w-full flex-col p-8"), ..attrs],
     [],
   )
 }
@@ -192,103 +192,152 @@ fn view(m: Model) {
 fn loading_display(srs: option.Option(series.Series)) {
   let account = account.get()
   let api_key = account |> account.image_key
-  html.div([attribute.class("font-[Poppins,sans-serif] space-y-4 relative")], [
-    html.div(
-      [
-        attribute.class(
-          "absolute -top-4 -left-4 -right-4 h-72 sm:h-80 overflow-hidden pointer-events-none",
-        ),
-      ],
-      [
-        case srs {
-          option.Some(s) ->
-            html.img([
-              attribute.class(
-                "absolute inset-0 w-full h-full object-cover blur-xl opacity-15 scale-110",
-              ),
-              attribute.src(image_url.series_cover_blur(s.id, api_key)),
-              attribute.alt(""),
-              attribute.attribute("aria-hidden", "true"),
-              attribute.attribute("fetchpriority", "low"),
-            ])
-          option.None -> element.none()
-        },
-        html.div(
-          [
-            attribute.class(
-              "absolute inset-0 bg-gradient-to-b from-zinc-950/20 to-zinc-950",
-            ),
-          ],
-          [],
-        ),
-      ],
-    ),
-    html.div(
-      [attribute.class("relative z-10 flex flex-col sm:flex-row gap-4")],
-      [
-        case srs {
-          option.Some(s) ->
-            html.img([
-              attribute.class(
-                "max-sm:self-center bg-zinc-800 rounded-lg h-64 sm:h-72 aspect-[2/3] flex-shrink-0 object-cover shadow-2xl shadow-zinc-950",
-              ),
-              attribute.src(image_url.series_cover_w(s.id, api_key, 800)),
-              attribute.attribute("fetchpriority", "high"),
-              attribute.alt(""),
-            ])
-          option.None ->
-            html.div(
-              [
+  html.div(
+    [attribute.class("font-[Poppins,sans-serif] flex flex-col gap-3 relative")],
+    [
+      html.div(
+        [
+          attribute.class(
+            "absolute -top-8 -left-8 -right-8 h-72 sm:h-80 overflow-hidden pointer-events-none",
+          ),
+        ],
+        [
+          case srs {
+            option.Some(s) ->
+              html.img([
                 attribute.class(
-                  "max-sm:self-center bg-zinc-800 rounded-lg h-64 sm:h-72 aspect-[2/3] flex-shrink-0 animate-pulse",
+                  "absolute inset-0 w-full h-full object-cover blur-xl opacity-15 scale-110",
                 ),
-              ],
-              [],
-            )
-        },
-        html.div([attribute.class("flex flex-col gap-2 min-w-0 flex-1")], [
+                attribute.src(image_url.series_cover_blur(s.id, api_key)),
+                attribute.alt(""),
+                attribute.attribute("aria-hidden", "true"),
+                attribute.attribute("fetchpriority", "low"),
+              ])
+            option.None -> element.none()
+          },
           html.div(
             [
               attribute.class(
-                "h-10 sm:h-14 w-3/4 bg-zinc-800 rounded animate-pulse",
+                "absolute inset-0 bg-gradient-to-b from-zinc-950/20 to-zinc-950",
               ),
             ],
             [],
           ),
+        ],
+      ),
+      html.div(
+        [attribute.class("relative z-10 flex flex-col sm:flex-row gap-4")],
+        [
+          case srs {
+            option.Some(s) ->
+              html.img([
+                attribute.class(
+                  "max-sm:self-center bg-zinc-800 rounded-lg h-68 sm:h-80 aspect-[2/3] flex-shrink-0 object-cover shadow-2xl shadow-zinc-950",
+                ),
+                attribute.src(image_url.series_cover_w(s.id, api_key, 800)),
+                attribute.attribute("fetchpriority", "high"),
+                attribute.alt(""),
+              ])
+            option.None ->
+              html.div(
+                [
+                  attribute.class(
+                    "max-sm:self-center bg-zinc-800 rounded-lg h-68 sm:h-80 aspect-[2/3] flex-shrink-0 animate-pulse",
+                  ),
+                ],
+                [],
+              )
+          },
           html.div(
-            [attribute.class("h-4 w-1/2 bg-zinc-800 rounded animate-pulse")],
+            [
+              attribute.class(
+                "flex flex-col max-sm:gap-3 justify-between min-w-0 flex-1",
+              ),
+            ],
+            [
+              html.div([attribute.class("flex flex-col gap-2.5")], [
+                html.div([attribute.class("flex flex-col gap-1")], [
+                  html.div(
+                    [
+                      attribute.class(
+                        "h-10 sm:h-14 w-3/4 bg-zinc-800 rounded animate-pulse",
+                      ),
+                    ],
+                    [],
+                  ),
+                  html.div(
+                    [
+                      attribute.class(
+                        "h-4 w-1/2 bg-zinc-800 rounded animate-pulse",
+                      ),
+                    ],
+                    [],
+                  ),
+                ]),
+                html.div(
+                  [
+                    attribute.class(
+                      "h-3.5 w-32 bg-zinc-800 rounded animate-pulse",
+                    ),
+                  ],
+                  [],
+                ),
+              ]),
+              html.div(
+                [
+                  attribute.class(
+                    "h-9 w-36 bg-zinc-800 rounded-lg animate-pulse",
+                  ),
+                ],
+                [],
+              ),
+              html.div(
+                [attribute.class("flex flex-wrap gap-2")],
+                list.map(
+                  [
+                    "h-5 w-16 bg-zinc-800 rounded-full animate-pulse",
+                    "h-5 w-20 bg-zinc-800 rounded-full animate-pulse",
+                    "h-5 w-14 bg-zinc-800 rounded-full animate-pulse",
+                  ],
+                  fn(c) { html.div([attribute.class(c)], []) },
+                ),
+              ),
+              html.div(
+                [attribute.class("h-3.5 w-24 bg-zinc-800 rounded animate-pulse")],
+                [],
+              ),
+            ],
+          ),
+        ],
+      ),
+      html.div([attribute.class("relative z-10 flex flex-col gap-4")], [
+        html.div([attribute.class("space-y-3")], [
+          html.div([attribute.class("flex items-center gap-3")], [
+            html.div(
+              [attribute.class("h-7 w-16 bg-zinc-800 rounded animate-pulse")],
+              [],
+            ),
+            html.div(
+              [attribute.class("flex-1 h-px border-t border-zinc-700")],
+              [],
+            ),
+          ]),
+          html.div(
+            [attribute.class("h-4 w-full bg-zinc-800 rounded animate-pulse")],
             [],
           ),
           html.div(
-            [attribute.class("h-3.5 w-32 bg-zinc-800 rounded animate-pulse")],
+            [attribute.class("h-4 w-5/6 bg-zinc-800 rounded animate-pulse")],
             [],
           ),
           html.div(
-            [attribute.class("h-9 w-36 bg-zinc-800 rounded-lg animate-pulse")],
+            [attribute.class("h-4 w-4/6 bg-zinc-800 rounded animate-pulse")],
             [],
           ),
         ]),
-      ],
-    ),
-    html.div([attribute.class("relative z-10 space-y-3 pt-2")], [
-      html.div(
-        [attribute.class("h-5 w-16 bg-zinc-800 rounded animate-pulse")],
-        [],
-      ),
-      html.div(
-        [attribute.class("h-4 w-full bg-zinc-800 rounded animate-pulse")],
-        [],
-      ),
-      html.div(
-        [attribute.class("h-4 w-5/6 bg-zinc-800 rounded animate-pulse")],
-        [],
-      ),
-      html.div(
-        [attribute.class("h-4 w-4/6 bg-zinc-800 rounded animate-pulse")],
-        [],
-      ),
-    ]),
-  ])
+      ]),
+    ],
+  )
 }
 
 fn display(
@@ -304,16 +353,14 @@ fn display(
   let blur_url = image_url.series_cover_blur(srs.id, api_key)
 
   html.div(
-    [attribute.class("font-[Poppins,sans-serif] flex flex-col gap-4 relative")],
+    [attribute.class("font-[Poppins,sans-serif] flex flex-col gap-3 relative")],
     [
       background_blur(blur_url),
       editor.panel(m),
       series_header(m, srs, metadata, new_time_range, cover_url),
       html.div(
         [
-          attribute.class(
-            "relative z-10 space-y-4 pt-2 border-t border-zinc-800",
-          ),
+          attribute.class("relative z-10 flex flex-col gap-4"),
         ],
         [about_section(metadata), content_tabs(m, details, api_key)],
       ),
@@ -325,7 +372,7 @@ fn background_blur(blur_url: String) -> element.Element(Msg) {
   html.div(
     [
       attribute.class(
-        "absolute -top-4 -left-4 -right-4 h-72 sm:h-80 overflow-hidden pointer-events-none",
+        "absolute -top-8 -left-8 -right-8 h-72 sm:h-80 overflow-hidden pointer-events-none",
       ),
     ],
     [
@@ -359,7 +406,7 @@ fn series_header(
   html.div([attribute.class("relative z-10 flex flex-col sm:flex-row gap-4")], [
     html.img([
       attribute.class(
-        "max-sm:self-center bg-zinc-800 rounded-lg h-64 sm:h-72 aspect-[2/3] flex-shrink-0 object-cover shadow-2xl shadow-zinc-950",
+        "max-sm:self-center bg-zinc-800 rounded-lg h-68 sm:h-80 aspect-[2/3] flex-shrink-0 object-cover shadow-2xl shadow-zinc-950",
       ),
       attribute.src(cover_url),
       attribute.rel("preload"),
@@ -367,12 +414,16 @@ fn series_header(
       attribute.attribute("as", "image"),
       attribute.alt("Cover image for " <> srs.localized_name),
     ]),
-    html.div([attribute.class("flex flex-col gap-2 min-w-0")], [
-      title_block(srs, metadata, new_time_range, m.time_left),
-      progress_bar(srs),
-      action_buttons(m),
-      tags_bar(metadata),
-    ]),
+    html.div(
+      [attribute.class("flex flex-col max-sm:gap-3 justify-between min-w-0")],
+      [
+        title_block(srs, metadata, new_time_range, m.time_left),
+        progress_bar(srs),
+        action_buttons(m),
+        tags_bar(metadata),
+        publication_status(metadata),
+      ],
+    ),
   ])
 }
 
@@ -382,36 +433,38 @@ fn title_block(
   new_time_range: Int,
   time_left: option.Option(series.Time),
 ) -> element.Element(Msg) {
-  html.div([attribute.class("space-y-1")], [
-    html.span(
-      [
-        attribute.class(
-          "flex flex-nowrap gap-2 font-['Poppins'] font-extrabold items-center",
-        ),
-      ],
-      [
-        case srs.created |> date.get_time() > new_time_range {
-          True ->
-            tag.simple("New!", [
-              attribute.class(
-                "bg-rose-600 normal-case! font-bold! text-[0.9rem]!",
-              ),
-            ])
-          False -> element.none()
-        },
-        html.h1([attribute.class("text-xl sm:text-5xl")], [
-          element.text(srs.name),
-        ]),
-      ],
-    ),
-    case srs.localized_name == "" {
-      False ->
-        html.h2(
-          [attribute.class("font-medium text-zinc-400 text-base sm:text-lg")],
-          [element.text(srs.localized_name)],
-        )
-      True -> element.none()
-    },
+  html.div([attribute.class("flex flex-col gap-2.5")], [
+    html.div([attribute.class("flex flex-col gap-1")], [
+      html.span(
+        [
+          attribute.class(
+            "flex flex-nowrap gap-2 font-['Poppins'] font-extrabold items-center",
+          ),
+        ],
+        [
+          case srs.created |> date.get_time() > new_time_range {
+            True ->
+              tag.simple("New!", [
+                attribute.class(
+                  "bg-rose-600 normal-case! font-bold! text-[0.9rem]!",
+                ),
+              ])
+            False -> element.none()
+          },
+          html.h1([attribute.class("text-xl sm:text-5xl")], [
+            element.text(srs.name),
+          ]),
+        ],
+      ),
+      case srs.localized_name == "" {
+        False ->
+          html.h2(
+            [attribute.class("font-medium text-zinc-400 text-base sm:text-lg")],
+            [element.text(srs.localized_name)],
+          )
+        True -> element.none()
+      },
+    ]),
     html.div([attribute.class("flex items-center gap-2 flex-wrap")], [
       case metadata.age_rating {
         series.NotApplicable | series.UnknownRating -> element.none()
@@ -443,42 +496,54 @@ fn progress_bar(srs: series.Series) -> element.Element(Msg) {
   case srs.pages {
     0 -> element.none()
     total ->
-      html.div([attribute.class("flex items-center gap-3 pt-1 w-48 sm:w-64")], [
-        html.div(
-          [
-            attribute.class(
-              "flex-1 h-1.5 bg-zinc-700 rounded-full overflow-hidden",
-            ),
-          ],
-          [
-            html.div(
-              [
-                attribute.class(case srs.pages_read == total {
-                  True -> "h-full bg-emerald-500 rounded-full"
-                  False -> "h-full bg-violet-500 rounded-full"
-                }),
-                attribute.style(
-                  "width",
-                  float.to_string(
-                    int.to_float(srs.pages_read) /. int.to_float(total) *. 100.0,
-                  )
-                    <> "%",
-                ),
-              ],
-              [],
-            ),
-          ],
-        ),
-        html.span([attribute.class("text-xs text-zinc-400 shrink-0")], [
-          element.text(
-            float.to_string(
-              { int.to_float(srs.pages_read) /. int.to_float(total) *. 100.0 }
-              |> float.to_precision(2),
-            )
-            <> "% read",
+      html.div(
+        [attribute.class("flex flex-col items-center gap-1 w-48 sm:w-64")],
+        [
+          html.div([attribute.class("w-full flex justify-between")], [
+            html.span([attribute.class("text-xs text-zinc-400 shrink-0")], [
+              element.text("Progress"),
+            ]),
+            html.span([attribute.class("text-xs text-zinc-400 shrink-0")], [
+              element.text(
+                float.to_string(
+                  {
+                    int.to_float(srs.pages_read) /. int.to_float(total) *. 100.0
+                  }
+                  |> float.to_precision(2),
+                )
+                <> "% read",
+              ),
+            ]),
+          ]),
+          html.div(
+            [
+              attribute.class(
+                "w-full h-1.5 bg-zinc-700 rounded-full overflow-hidden",
+              ),
+            ],
+            [
+              html.div(
+                [
+                  attribute.class(case srs.pages_read == total {
+                    True -> "h-full bg-emerald-500 rounded-full"
+                    False -> "h-full bg-violet-500 rounded-full"
+                  }),
+                  attribute.style(
+                    "width",
+                    float.to_string(
+                      int.to_float(srs.pages_read)
+                      /. int.to_float(total)
+                      *. 100.0,
+                    )
+                      <> "%",
+                  ),
+                ],
+                [],
+              ),
+            ],
           ),
-        ]),
-      ])
+        ],
+      )
   }
 }
 
@@ -516,14 +581,9 @@ fn action_buttons(m: Model) -> element.Element(Msg) {
 fn tags_bar(metadata: series.Metadata) -> element.Element(Msg) {
   html.div(
     [attribute.class("flex flex-wrap gap-2")],
-    [
-      publication_status(metadata),
-      ..list.map(
-        tag.sort_reverse(metadata.tags |> list.append(metadata.genres)),
-        fn(t) { tag.single(t, []) },
-      )
-    ]
-      |> list.reverse,
+    list.map(tag.sort(metadata.tags |> list.append(metadata.genres)), fn(t) {
+      tag.single(t, [])
+    }),
   )
 }
 
@@ -554,10 +614,23 @@ fn publication_status(metadata: series.Metadata) -> element.Element(Msg) {
 
 fn about_section(metadata: series.Metadata) -> element.Element(Msg) {
   html.div([attribute.class("space-y-3")], [
-    html.h2([attribute.class("font-bold text-2xl")], [element.text("About")]),
-    html.p([attribute.class("text-sm text-zinc-300 leading-relaxed")], [
-      element.text(metadata.summary),
+    html.div([attribute.class("flex items-center gap-3")], [
+      html.h2(
+        [attribute.class("font-[DM_Serif_Display,serif] font-bold text-2xl")],
+        [element.text("About")],
+      ),
+      html.div([attribute.class("flex-1 h-px border-t border-zinc-700")], []),
     ]),
+    html.pre(
+      [
+        attribute.class(
+          "text-sm text-wrap font-[Poppins,sans-serif] text-zinc-300 leading-relaxed",
+        ),
+      ],
+      [
+        element.text(metadata.summary),
+      ],
+    ),
   ])
 }
 
@@ -571,10 +644,7 @@ fn content_tabs(
   let has_chapters = !list.is_empty(filtered_chapters)
 
   html.div([attribute.class("space-y-4")], [
-    case has_volumes {
-      False -> element.none()
-      True -> tab_bar(m, has_volumes, has_chapters)
-    },
+    tab_bar(m, has_volumes, has_chapters),
     case m.active_tab {
       model.StorylineTab ->
         storyline_tab(m, details, filtered_chapters, api_key)
@@ -783,13 +853,14 @@ fn chapters_tab(
 fn tab_button(label: String, active: Bool, msg: Msg) {
   html.button(
     [
-      attribute.class(
-        "pb-2 px-1 text-sm font-medium border-b-2 -mb-px transition-colors "
-        <> case active {
-          True -> "border-violet-500 text-white"
-          False -> "border-transparent text-zinc-400 hover:text-white"
-        },
-      ),
+      attribute.class("pb-2 px-1 text-sm border-b-2 -mb-px transition-colors"),
+      case active {
+        True -> attribute.class("font-medium border-violet-500 text-white")
+        False ->
+          attribute.class(
+            "font-light border-transparent text-zinc-400 hover:text-white",
+          )
+      },
       event.on_click(msg),
     ],
     [element.text(label)],

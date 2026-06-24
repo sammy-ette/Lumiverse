@@ -367,7 +367,18 @@ fn view_routed(m: Model) {
                 _ -> "w-full min-h-screen flex flex-col"
               }),
             ],
-            [view_nav(m, route, acc), view_main(route, acc)],
+            [
+              html.div(
+                [
+                  attribute.class(
+                    "pointer-events-none fixed inset-0 z-[200] opacity-[0.1] mix-blend-screen bg-[url('https://assets.astrality.party/website-assets/grain.svg')]",
+                  ),
+                ],
+                [],
+              ),
+              view_nav(m, route, acc),
+              view_main(route, acc),
+            ],
           )
         }
       }
@@ -378,7 +389,7 @@ fn view_nav(m: Model, route: router.Route, acc: account.Account) {
   html.nav(
     [
       attribute.class(
-        "z-50 bg-zinc-950/85 backdrop-blur-xl border-b border-zinc-600",
+        "z-50 bg-zinc-900/85 backdrop-blur-xl border-b border-zinc-800",
       ),
       case route {
         router.Reader(_) -> attribute.none()
@@ -386,7 +397,7 @@ fn view_nav(m: Model, route: router.Route, acc: account.Account) {
       },
     ],
     [
-      html.div([attribute.class("flex items-center justify-between p-4")], [
+      html.div([attribute.class("flex items-center justify-between p-3")], [
         view_nav_left(m),
         view_nav_right(m, acc),
       ]),
@@ -402,7 +413,7 @@ fn view_nav_left(m: Model) {
       html.span(
         [
           attribute.class(
-            "font-[Poppins,sans-serif] hover:bg-zinc-900 py-1 px-2 rounded-xl self-center text-xl font-black flex gap-2 items-end",
+            "font-[Poppins,sans-serif] hover:bg-zinc-900 py-1 rounded-xl self-center text-xl font-black flex gap-2 items-end",
           ),
         ],
         [
@@ -413,10 +424,7 @@ fn view_nav_left(m: Model) {
           ]),
           html.span([attribute.class("inline-flex items-center gap-2")], [
             html.span([], [
-              html.span([attribute.class("text-violet-400")], [
-                element.text("Lumi"),
-              ]),
-              element.text("verse"),
+              element.text("Lumiverse"),
               html.span([attribute.class("text-2xl text-violet-400")], [
                 element.text("."),
               ]),
@@ -450,6 +458,7 @@ fn view_nav_left(m: Model) {
       ],
       dropdown.AlignLeft,
     ),
+    html.div([attribute.class("border-r border-zinc-700 w-px h-6")], []),
     view_search(m),
   ])
 }
@@ -458,7 +467,7 @@ fn view_search(m: Model) {
   html.div([attribute.class("relative hidden md:flex items-center group")], [
     html.input([
       attribute.class(
-        "bg-zinc-800 rounded-full px-5 py-2.5 text-xs text-zinc-200 outline-none focus:ring-1 focus:ring-violet-500 placeholder-zinc-400 w-48",
+        "bg-transparent border-b border-transparent py-2 text-white text-sm outline-none focus:border-violet-500 transition-colors",
       ),
       attribute.attribute("placeholder", "Search..."),
       attribute.value(m.search_query),

@@ -25,6 +25,7 @@ type Model {
     dashboard_count: Int,
     loaded: Bool,
     carousel: option.Option(stream.SeriesList),
+    carousel_control_clicked: Bool,
     carousel_index: Int,
     metadata: dict.Dict(Int, series_api.Metadata),
   )
@@ -35,6 +36,8 @@ type Msg {
   SeriesListRetrieved(Result(stream.SeriesList, rsvp.Error))
   MetadataRetrieved(Result(series_api.Metadata, rsvp.Error))
   CarouselTick(Int)
+  CarouselPrev
+  CarouselNext
   Nothing
 }
 
@@ -47,7 +50,7 @@ pub fn element() {
   document.set_title("Lumiverse")
   element.element(
     "home-page",
-    [attribute.class("flex min-h-screen w-full flex-col py-8 px-4 pt-0")],
+    [attribute.class("flex flex-col min-h-screen w-full p-8")],
     [],
   )
 }
@@ -59,6 +62,7 @@ fn init(_) {
       dashboard_count: 0,
       loaded: False,
       carousel: option.None,
+      carousel_control_clicked: False,
       carousel_index: 0,
       metadata: dict.new(),
     ),
@@ -146,9 +150,13 @@ fn update(m: Model, msg: Msg) {
       )
     }
     CarouselTick(offset) -> {
-      case m.carousel {
-        option.None -> #(m, effect.none())
-        option.Some(carousel) -> #(
+      case m.carousel, m.carousel_control_clicked {
+        option.None, _ -> #(m, effect.none())
+        option.Some(_), True -> #(
+          Model(..m, carousel_control_clicked: False),
+          effect.none(),
+        )
+        option.Some(carousel), False -> #(
           Model(
             ..m,
             carousel_index: case
@@ -162,6 +170,38 @@ fn update(m: Model, msg: Msg) {
         )
       }
     }
+    CarouselPrev ->
+      case m.carousel {
+        option.None -> #(m, effect.none())
+        option.Some(carousel) -> #(
+          Model(
+            ..m,
+            carousel_control_clicked: True,
+            carousel_index: case echo m.carousel_index == 0 {
+              True -> list.length(carousel.items) - 1
+              False -> m.carousel_index - 1
+            },
+          ),
+          effect.none(),
+        )
+      }
+    CarouselNext ->
+      case m.carousel {
+        option.None -> #(m, effect.none())
+        option.Some(carousel) -> #(
+          Model(
+            ..m,
+            carousel_control_clicked: True,
+            carousel_index: case
+              m.carousel_index == list.length(carousel.items) - 1
+            {
+              True -> 0
+              False -> m.carousel_index + 1
+            },
+          ),
+          effect.none(),
+        )
+      }
     _ -> #(m, effect.none())
   }
 }
@@ -172,99 +212,37 @@ fn view(m: Model) {
     _, _, _ ->
       html.div(
         [
-          attribute.class("flex min-h-screen flex-col space-y-10"),
+          attribute.class("flex min-h-screen flex-col gap-10"),
           components.redirect_click(Nothing),
         ],
         [
-          html.div([attribute.class("relative overflow-hidden -mx-4")], [
-            html.div(
-              [
-                attribute.style(
-                  "transform",
-                  "translateX(-"
-                    <> int.to_string(m.carousel_index * 100)
-                    <> "%)",
-                ),
-                attribute.class(
-                  "flex h-[26vh] sm:h-[40vh] flex-shrink-0 bg-zinc-800 transition-transform duration-300 ease-in-out",
-                ),
-              ],
-              case m.carousel {
-                option.None -> [element.none()]
-                option.Some(srs_list) -> carousel(m, srs_list)
-              },
-            ),
-            html.div(
-              [
-                attribute.class(
-                  "absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-20",
-                ),
-              ],
-              case m.carousel {
-                option.None -> []
-                option.Some(srs_list) ->
-                  list.index_map(srs_list.items, fn(_, idx) {
-                    html.div(
-                      [
-                        attribute.class(
-                          "h-1.5 rounded-full transition-all duration-300 "
-                          <> case idx == m.carousel_index {
-                            True -> "w-6 bg-white"
-                            False -> "w-1.5 bg-white/40"
-                          },
-                        ),
-                      ],
-                      [],
-                    )
-                  })
-              },
-            ),
-            html.div(
-              [
-                attribute.class(
-                  "absolute bottom-6 sm:bottom-8 right-4 sm:right-8 flex gap-3 z-20",
-                ),
-              ],
-              [
-                button.icon("ph ph-[caret-left] text-xl", "Previous", [
-                  event.on_click(CarouselTick(-1)),
-                  attribute.class(
-                    "rounded-full bg-zinc-950/60 backdrop-blur-sm p-2 hover:bg-zinc-800/70",
-                  ),
-                ]),
-                button.icon("ph ph-[caret-right] text-xl", "Next", [
-                  event.on_click(CarouselTick(1)),
-                  attribute.class(
-                    "rounded-full bg-zinc-950/60 backdrop-blur-sm p-2 hover:bg-zinc-800/70",
-                  ),
-                ]),
-              ],
-            ),
-          ]),
+          carousel_element(m),
           html.div(
             [attribute.class("space-y-8")],
             list.take(
               list.flatten([
                 list.map(m.dashboard_rows, fn(row) {
                   html.div([attribute.class("flex flex-col gap-3")], [
-                    html.div(
-                      [attribute.class("flex items-center justify-between")],
-                      [
-                        html.div([attribute.class("flex items-center gap-3")], [
-                          html.div(
-                            [
-                              attribute.class(
-                                "w-1 self-stretch bg-violet-500 rounded-full",
-                              ),
-                            ],
-                            [],
+                    html.div([attribute.class("flex items-center gap-3")], [
+                      html.h2(
+                        [
+                          attribute.class(
+                            "font-[DM_Serif_Display,serif] font-bold text-2xl",
                           ),
-                          html.h2([attribute.class("font-extrabold text-2xl")], [
-                            element.text(row.title),
-                          ]),
-                        ]),
-                      ],
-                    ),
+                        ],
+                        [
+                          element.text(row.title),
+                        ],
+                      ),
+                      html.div(
+                        [
+                          attribute.class(
+                            "flex-1 h-px border-t border-zinc-700",
+                          ),
+                        ],
+                        [],
+                      ),
+                    ]),
                     html.div(
                       [
                         attribute.class(
@@ -277,30 +255,24 @@ fn view(m: Model) {
                 }),
                 list.repeat(
                   html.div([attribute.class("flex flex-col gap-3")], [
-                    html.div(
-                      [attribute.class("flex items-center justify-between")],
-                      [
-                        html.div([attribute.class("flex items-center gap-3")], [
-                          html.div(
-                            [
-                              attribute.class(
-                                "w-1 h-8 bg-zinc-800 rounded-full animate-pulse",
-                              ),
-                            ],
-                            [],
+                    html.div([attribute.class("flex items-center gap-3")], [
+                      html.h2(
+                        [
+                          attribute.class(
+                            "h-8 w-48 bg-zinc-800 rounded animate-pulse",
                           ),
-                          html.h2(
-                            [
-                              attribute.class(
-                                "font-extrabold text-2xl animate-pulse bg-zinc-800 h-8 w-48",
-                              ),
-                            ],
-                            [],
+                        ],
+                        [],
+                      ),
+                      html.div(
+                        [
+                          attribute.class(
+                            "flex-1 h-px border-t border-zinc-700",
                           ),
-                        ]),
-                        element.none(),
-                      ],
-                    ),
+                        ],
+                        [],
+                      ),
+                    ]),
                     html.div(
                       [
                         attribute.class(
@@ -321,117 +293,235 @@ fn view(m: Model) {
   }
 }
 
+fn carousel_element(m: Model) {
+  html.div([attribute.class("relative overflow-hidden rounded-xl")], [
+    html.div(
+      [
+        attribute.style(
+          "transform",
+          "translateX(-" <> int.to_string(m.carousel_index * 100) <> "%)",
+        ),
+        attribute.class(
+          "flex flex-shrink-0 bg-zinc-800 transition-transform duration-400 ease-in-out",
+        ),
+      ],
+      case m.carousel {
+        option.None -> [carousel_skeleton()]
+        option.Some(srs_list) -> carousel(m, srs_list)
+      },
+    ),
+    case m.carousel {
+      option.None -> element.none()
+      option.Some(srs_list) ->
+        html.div(
+          [
+            attribute.class(
+              "absolute inset-x-4 bottom-4 sm:bottom-8 z-20 flex h-9 items-center justify-center",
+            ),
+          ],
+          [
+            html.div(
+              [attribute.class("flex items-center gap-2")],
+              list.index_map(srs_list.items, fn(_, idx) {
+                html.div(
+                  [
+                    attribute.class(
+                      "h-1.5 rounded-full transition-all duration-300",
+                    ),
+                    case idx == m.carousel_index {
+                      True -> attribute.class("w-6 bg-white")
+                      False -> attribute.class("w-1.5 bg-white/40")
+                    },
+                  ],
+                  [],
+                )
+              }),
+            ),
+            html.div(
+              [
+                attribute.class(
+                  "absolute inset-y-0 right-0 flex items-center gap-3",
+                ),
+              ],
+              [
+                button.icon("ph ph-[caret-left] text-xl", "Previous", [
+                  event.on_click(CarouselPrev),
+                  attribute.class(
+                    "rounded-full bg-zinc-950/60 backdrop-blur-sm p-2 hover:bg-zinc-800/70",
+                  ),
+                ]),
+                button.icon("ph ph-[caret-right] text-xl", "Next", [
+                  event.on_click(CarouselNext),
+                  attribute.class(
+                    "rounded-full bg-zinc-950/60 backdrop-blur-sm p-2 hover:bg-zinc-800/70",
+                  ),
+                ]),
+              ],
+            ),
+          ],
+        )
+    },
+  ])
+}
+
+fn carousel_skeleton() -> element.Element(Msg) {
+  html.div([attribute.class("relative flex w-full flex-shrink-0")], [
+    html.div(
+      [attribute.class("absolute inset-0 bg-zinc-800 animate-pulse")],
+      [],
+    ),
+    html.div(
+      [
+        attribute.class(
+          "relative z-10 flex w-full items-stretch gap-3 px-4 py-14 sm:gap-6 sm:px-8 sm:py-8 bg-zinc-950/75 backdrop-blur-sm",
+        ),
+      ],
+      [
+        html.div(
+          [
+            attribute.class(
+              "flex-shrink-0 rounded-lg bg-zinc-700 animate-pulse w-24 h-36 sm:w-48 sm:h-72",
+            ),
+          ],
+          [],
+        ),
+        html.div(
+          [
+            attribute.class(
+              "flex flex-col justify-between gap-2 min-w-0 flex-1",
+            ),
+          ],
+          [
+            html.div([attribute.class("flex flex-col gap-2")], [
+              html.div([attribute.class("flex flex-col gap-2 sm:gap-3")], [
+                html.div(
+                  [
+                    attribute.class(
+                      "h-7 sm:h-12 w-full bg-zinc-700 rounded animate-pulse",
+                    ),
+                  ],
+                  [],
+                ),
+                html.div(
+                  [attribute.class("flex flex-wrap gap-1")],
+                  list.map(
+                    [
+                      "h-5 w-14 bg-zinc-700 rounded-full animate-pulse",
+                      "h-5 w-20 bg-zinc-700 rounded-full animate-pulse",
+                      "h-5 w-16 bg-zinc-700 rounded-full animate-pulse",
+                    ],
+                    fn(c) { html.div([attribute.class(c)], []) },
+                  ),
+                ),
+                html.div(
+                  [
+                    attribute.class(
+                      "h-7 sm:h-12 w-1/2 bg-zinc-700 rounded animate-pulse",
+                    ),
+                  ],
+                  [],
+                ),
+              ]),
+            ]),
+            html.div(
+              [attribute.class("h-9 w-32 bg-zinc-700 rounded-lg animate-pulse")],
+              [],
+            ),
+          ],
+        ),
+      ],
+    ),
+  ])
+}
+
 fn carousel(m: Model, srs_list: stream.SeriesList) {
   list.index_map(srs_list.items, fn(serie, idx) {
     let metadata = dict.get(m.metadata, serie.id)
-    let is_active = idx == m.carousel_index
-    let priority_attrs = case is_active {
-      True -> [
-        attribute.attribute("fetchpriority", "high"),
-      ]
+    let priority_attrs = case idx == m.carousel_index {
+      True -> [attribute.attribute("fetchpriority", "high")]
       False -> [attribute.attribute("loading", "lazy")]
     }
     html.a(
       [
         attribute.href("/series/" <> serie.id |> int.to_string),
-        attribute.class("relative flex w-full h-full flex-shrink-0"),
+        attribute.class("relative flex w-full flex-shrink-0"),
       ],
       [
+        // blurred cover fills the slide as a backdrop (out of flow)
         html.div([attribute.class("absolute inset-0 bg-zinc-800")], [
           series.cover_image_w(serie, 800, [
             attribute.class("w-full h-full object-cover"),
             ..priority_attrs
           ]),
         ]),
+        // content panel stays in flow so it gives the slide its height
         html.div(
           [
             attribute.class(
-              "sm:hidden absolute inset-0 z-10 flex items-start gap-3 p-4 bg-zinc-950/75 backdrop-blur-sm",
+              "relative z-10 flex w-full items-stretch gap-3 px-4 py-14 sm:gap-6 sm:px-8 sm:py-8 bg-zinc-950/75 backdrop-blur-sm",
             ),
           ],
           [
             series.cover_image(serie, [
               attribute.class(
-                "bg-zinc-800 rounded-lg w-24 h-36 object-cover flex-shrink-0",
+                "flex-shrink-0 rounded-lg object-cover bg-zinc-800 w-24 h-36 sm:w-48 sm:h-72 sm:shadow-2xl sm:shadow-zinc-950",
               ),
               ..priority_attrs
             ]),
-            html.div([attribute.class("flex flex-col gap-2 min-w-0 pt-1")], [
-              html.h1(
-                [
-                  attribute.class(
-                    "font-extrabold text-xl line-clamp-3 leading-tight",
-                  ),
-                ],
-                [element.text(serie.name)],
-              ),
-              case metadata {
-                Error(_) -> element.none()
-                Ok(meta) ->
-                  html.div([attribute.class("flex flex-wrap gap-1")], [
-                    tag.list(list.take(
-                      meta.tags |> list.append(meta.genres) |> tag.sort,
-                      4,
-                    )),
-                  ])
-              },
-              html.span(
-                [
-                  attribute.class(
-                    "inline-flex w-fit items-center px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-semibold",
-                  ),
-                ],
-                [element.text("Read Now →")],
-              ),
-            ]),
-          ],
-        ),
-        html.div(
-          [
-            attribute.class(
-              "hidden sm:flex z-10 gap-6 p-8 bg-zinc-950/75 backdrop-blur-sm w-full",
-            ),
-          ],
-          [
-            series.cover_image(serie, [
-              attribute.class(
-                "bg-zinc-800 rounded-lg h-72 w-48 object-cover flex-shrink-0 shadow-2xl shadow-zinc-950",
-              ),
-              ..priority_attrs
-            ]),
-            html.div([attribute.class("flex flex-col gap-2 min-w-0 flex-1")], [
-              html.h1([attribute.class("font-extrabold text-5xl")], [
-                element.text(serie.name),
-              ]),
-              case metadata {
-                Error(_) -> element.none()
-                Ok(meta) ->
-                  html.div(
-                    [attribute.class("flex flex-col gap-2 overflow-hidden")],
+            html.div(
+              [
+                attribute.class(
+                  "flex flex-col justify-between gap-2 min-w-0 flex-1",
+                ),
+              ],
+              [
+                html.div([attribute.class("flex flex-col gap-2")], [
+                  html.h1(
                     [
-                      html.div([attribute.class("flex flex-wrap gap-1")], [
-                        tag.list(meta.tags |> list.append(meta.genres)),
-                      ]),
-                      html.p(
-                        [
-                          attribute.class(
-                            "text-wrap line-clamp-3 text-sm text-zinc-300",
-                          ),
-                        ],
-                        [element.text(meta.summary)],
-                      ),
-                      html.span(
-                        [
-                          attribute.class(
-                            "inline-flex w-fit items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-semibold",
-                          ),
-                        ],
-                        [element.text("Read Now →")],
+                      attribute.class(
+                        "font-extrabold text-xl sm:text-5xl line-clamp-3 leading-tight",
                       ),
                     ],
-                  )
-              },
-            ]),
+                    [element.text(serie.name)],
+                  ),
+                  case metadata {
+                    Error(_) -> element.none()
+                    Ok(meta) ->
+                      html.div(
+                        [attribute.class("flex flex-col gap-3 overflow-hidden")],
+                        [
+                          html.div(
+                            [
+                              attribute.class(
+                                "flex flex-wrap gap-1 overflow-hidden max-h-14 sm:max-h-none",
+                              ),
+                            ],
+                            [
+                              tag.list(
+                                meta.tags
+                                |> list.append(meta.genres)
+                                |> tag.sort,
+                              ),
+                            ],
+                          ),
+                          html.p(
+                            [
+                              attribute.class(
+                                "hidden sm:line-clamp-3 text-sm text-zinc-300",
+                              ),
+                            ],
+                            [element.text(meta.summary)],
+                          ),
+                        ],
+                      )
+                  },
+                ]),
+                button.button("Read Now", [
+                  attribute.class("w-fit"),
+                  button.primary(),
+                ]),
+              ],
+            ),
           ],
         ),
       ],
