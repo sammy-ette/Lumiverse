@@ -164,6 +164,7 @@ fn do_fetch(m: Model) {
     stmts,
     filter.And,
     m.page,
+    31,
     SeriesLoaded,
   )
 }
@@ -182,11 +183,7 @@ fn update(m: Model, msg: Msg) {
       let has_more = list.length(items) > 30
       let display_items = list.take(items, 30)
       #(
-        Model(
-          ..m,
-          series: option.Some(Ok(display_items)),
-          has_more:,
-        ),
+        Model(..m, series: option.Some(Ok(display_items)), has_more:),
         effect.none(),
       )
     }

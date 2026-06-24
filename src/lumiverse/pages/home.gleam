@@ -3,6 +3,7 @@ import gleam/dict
 import gleam/int
 import gleam/list
 import gleam/option
+import lumiverse/api/filter
 import lumiverse/api/series as series_api
 import lumiverse/api/stream
 import lumiverse/components
@@ -35,6 +36,7 @@ type Msg {
   DashboardRowsRetrieved(Result(List(stream.DashboardRow), rsvp.Error))
   SeriesListRetrieved(Result(stream.SeriesList, rsvp.Error))
   MetadataRetrieved(Result(series_api.Metadata, rsvp.Error))
+  CarouselListResponse(Result(List(series_api.SeriesMinimal), rsvp.Error))
   CarouselTick(Int)
   CarouselPrev
   CarouselNext
@@ -66,7 +68,24 @@ fn init(_) {
       carousel_index: 0,
       metadata: dict.new(),
     ),
-    stream.dashboard(DashboardRowsRetrieved),
+    effect.batch([
+      stream.dashboard(DashboardRowsRetrieved),
+      series_api.all(
+        filter.Random,
+        True,
+        [
+          filter.Statement(
+            filter.DoesNotEqual,
+            filter.AgeRating,
+            series_api.age_rating_to_int(series_api.AdultsOnly) |> int.to_string,
+          ),
+        ],
+        filter.And,
+        0,
+        10,
+        CarouselListResponse,
+      ),
+    ]),
   )
 }
 
@@ -112,10 +131,6 @@ fn update(m: Model, msg: Msg) {
       )
     }
     SeriesListRetrieved(Ok(srs_list)) -> {
-      let carousel = case srs_list.title {
-        "Newly Added" -> option.Some(srs_list)
-        _ -> m.carousel
-      }
       #(
         Model(
           ..m,
@@ -130,7 +145,6 @@ fn update(m: Model, msg: Msg) {
             True -> m.dashboard_count - 1
             False -> m.dashboard_count
           },
-          carousel:,
         ),
         case srs_list.title {
           "Newly Added" ->
@@ -147,6 +161,18 @@ fn update(m: Model, msg: Msg) {
       #(
         Model(..m, metadata: m.metadata |> dict.insert(metadata.id, metadata)),
         effect.none(),
+      )
+    }
+    CarouselListResponse(Ok(items)) -> {
+      let carousel_list =
+        stream.SeriesList(items:, title: "Discover", idx: -1)
+      #(
+        Model(..m, carousel: option.Some(carousel_list)),
+        effect.batch(
+          list.map(items, fn(serie) {
+            series_api.metadata(serie.id, MetadataRetrieved)
+          }),
+        ),
       )
     }
     CarouselTick(offset) -> {

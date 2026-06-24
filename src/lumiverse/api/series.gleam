@@ -532,10 +532,14 @@ pub fn all(
   statements: List(filter.Statement),
   combination: filter.Combination,
   page: Int,
+  page_size: Int,
   resp: api.Response(List(SeriesMinimal), a),
 ) {
   fetch.post(
-    "/api/series/all-v2?pageNumber=" <> int.to_string(page) <> "&pageSize=31",
+    "/api/series/all-v2?pageNumber="
+      <> int.to_string(page)
+      <> "&pageSize="
+      <> int.to_string(page_size),
     filter.encode_smart_filter(filter.SmartFilter(
       id: 0,
       name: "",
