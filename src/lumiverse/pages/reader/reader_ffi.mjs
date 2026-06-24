@@ -1,5 +1,17 @@
+let _listenerController = null;
+
 export function eventKey(event) {
   return event.key ?? "";
+}
+
+export function addListener(type, listener) {
+  if (!_listenerController) _listenerController = new AbortController();
+  document.addEventListener(type, listener, { signal: _listenerController.signal });
+}
+
+export function removeListeners() {
+  _listenerController?.abort();
+  _listenerController = null;
 }
 
 export function scrollBy(amount) {

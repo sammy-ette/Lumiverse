@@ -40,6 +40,7 @@ pub fn register() {
       component.on_attribute_change("chapter-id", fn(value) {
         int.parse(value) |> result.map(model.ID)
       }),
+      component.on_disconnect(model.Unmount),
     ])
   lustre.register(app, "reader-page")
 }
@@ -83,7 +84,7 @@ pub fn init(_) {
     ),
     effect.batch([
       effect.from(fn(dispatch) {
-        document.add_event_listener("keydown", fn(raw) {
+        utils.add_listener("keydown", fn(raw) {
           case utils.event_key(raw) {
             "ArrowRight" | "d" | "l" -> dispatch(model.NavigateRight)
             "ArrowLeft" | "a" | "h" -> dispatch(model.NavigateLeft)
@@ -96,7 +97,7 @@ pub fn init(_) {
         Nil
       }),
       effect.from(fn(dispatch) {
-        document.add_event_listener("fullscreenchange", fn(_) {
+        utils.add_listener("fullscreenchange", fn(_) {
           let doc = window.document(window.self())
           let is_fullscreen = document.fullscreen_element(doc) |> result.is_ok
           dispatch(model.SyncZen(is_fullscreen))
@@ -104,7 +105,7 @@ pub fn init(_) {
         Nil
       }),
       effect.from(fn(dispatch) {
-        document.add_event_listener("scroll", fn(_) {
+        utils.add_listener("scroll", fn(_) {
           dispatch(model.LongStripScroll)
         })
         Nil
@@ -471,6 +472,7 @@ pub fn update(m: model.Model, msg: model.Msg) {
       }
     }
     model.ToggleMenu -> menu.update(m, msg)
+    model.Unmount -> #(m, effect.from(fn(_) { utils.remove_listeners() }))
     _ -> settings.update(m, msg)
   }
 }

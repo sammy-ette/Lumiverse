@@ -96,4 +96,5 @@ pub type Msg {
   ScrubberHover(Bool)
   LongStripScroll
   Nothing
+  Unmount
 }
