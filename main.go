@@ -18,7 +18,6 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/compress"
-	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/etag"
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/proxy"
@@ -136,7 +135,9 @@ func validateToken(authHeader string) (*KavitaAccount, error) {
 	}
 
 	var account KavitaAccount
-	json.NewDecoder(resp.Body).Decode(&account)
+	if err := json.NewDecoder(resp.Body).Decode(&account); err != nil {
+		return nil, fmt.Errorf("decoding kavita account response: %w", err)
+	}
 	if account.Username == "" {
 		return nil, errors.New("empty username from kavita")
 	}
@@ -162,7 +163,9 @@ func validateCookie(cookie string) (*KavitaAccount, error) {
 	}
 
 	var account KavitaAccount
-	json.NewDecoder(resp.Body).Decode(&account)
+	if err := json.NewDecoder(resp.Body).Decode(&account); err != nil {
+		return nil, fmt.Errorf("decoding kavita account response: %w", err)
+	}
 	if account.Username == "" {
 		return nil, errors.New("empty username from kavita")
 	}
@@ -238,8 +241,10 @@ func updatePreferences(c fiber.Ctx) error {
 		IdentityProvider: user.IdentityProvider,
 	}
 
-	payload, _ := json.Marshal(update)
-	fmt.Println(string(payload))
+	payload, err := json.Marshal(update)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to build update request"})
+	}
 	resp, err := kavitaDo(http.MethodPost, "/api/Account/update", bytes.NewReader(payload))
 	if err != nil {
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "kavita update failed"})
@@ -389,15 +394,15 @@ func loadAssets() {
 	var err error
 	cssBytes, err = os.ReadFile("./dist/lumiverse.css")
 	if err != nil {
-		log.Fatal("could not read lumiverse.css: %v", err)
+		log.Fatalf("could not read lumiverse.css: %v", err)
 	}
 	jsBytes, err = os.ReadFile("./dist/lumiverse.js")
 	if err != nil {
-		log.Fatal("could not read lumiverse.js: %v", err)
+		log.Fatalf("could not read lumiverse.js: %v", err)
 	}
 	svgBytes, err = os.ReadFile("./dist/lumiverse.svg")
 	if err != nil {
-		log.Fatal("could not read lumiverse.svg: %v", err)
+		log.Fatalf("could not read lumiverse.svg: %v", err)
 	}
 
 	// Compute version hash from JS+CSS for Service Worker cache busting.
@@ -474,7 +479,6 @@ func main() {
 		IdleTimeout:     120 * time.Second,
 	})
 	app.Use(logger.New())
-	app.Use(cors.New())
 	app.Use(compress.New(compress.Config{Level: compress.LevelBestSpeed}))
 
 	lumiverse := app.Group("/api/lumiverse", authRequired)
