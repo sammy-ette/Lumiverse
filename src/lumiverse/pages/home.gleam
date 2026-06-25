@@ -203,7 +203,7 @@ fn update(m: Model, msg: Msg) {
           Model(
             ..m,
             carousel_control_clicked: True,
-            carousel_index: case echo m.carousel_index == 0 {
+            carousel_index: case m.carousel_index == 0 {
               True -> list.length(carousel.items) - 1
               False -> m.carousel_index - 1
             },
