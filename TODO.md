@@ -1,23 +1,18 @@
 # TODO
 
 ## Stubbed / Partial (easiest wins)
-- [x] Global search — search across series, chapters, tags, authors
-- [x] All Series page (`/all` route) — browsable, sortable, filterable list
 - [ ] Smart Filter & MoreInGenre dashboard rows — types decoded but never rendered
-- [ ] Series metadata completeness — writers, publishers, characters, translators (currently empty lists)
+- [ ] Series metadata completeness — publishers, characters (decoded but discarded; other contributor fields decided not worth showing)
 
 ## New Pages
 - [ ] Collections & Reading Lists — browse and manage Kavita collections
 - [ ] User statistics — pages read, series completed, reading history
-- [x] User management (admin) — create, edit, delete users
 
 ## Reader
-- [ ] Keyboard shortcut help overlay — discoverable list of all shortcuts
 - [ ] Page bookmarking — Kavita API supports it
 - [ ] Double-page spread mode
 
 ## UX / Discovery
-- [ ] Series filtering & sorting — by status, genre, rating, release year
 - [ ] Custom dashboard layout — reorder/toggle row visibility (Kavita has an API for this)
 - [ ] Favorites / watchlist — mark series without starting them
 - [ ] Series recommendations — "more like this" based on shared tags/genres
@@ -28,8 +23,7 @@
 - [ ] Want to Read list — separate from in-progress, track intent (Kavita supports this)
 - [ ] Related series — show sequels, prequels, spin-offs (Kavita has relationship data)
 - [ ] Custom cover upload — let admins upload cover art for a series
-- [ ] Tag / genre browser — clickable tags on series page navigate to a filtered list
-- [x] Reading time estimate — "~3 hrs left in this volume" based on page count and pace
+- [ ] Tag / genre browser — clickable tags on series page navigate to a filtered list (currently only filterable from `/all`, not clickable from series detail page)
 
 ## Reader (more)
 - [ ] Chapter list panel — jump to any chapter without leaving the reader
@@ -41,5 +35,12 @@
 
 ## Integrations / Platform
 - [ ] Scrobbling status UI — show AniList/MAL sync state (Kavita already tracks this)
-- [ ] PWA support — installable app with offline caching for recent chapters
-- [ ] Random series picker — "surprise me" button for when you can't decide
+- [x] PWA support — manifest.json missing, so app isn't installable yet (service worker/offline caching already exists)
+- [ ] Random series picker — "surprise me" button, distinct from the randomized carousel row (low priority)
+
+## Quality / Robustness (from 2026-06-25 audit)
+- [ ] Distinguishable error states — `all.gleam`, `search.gleam`, `series/page.gleam` currently show blank/generic failure on API error with no retry and no way to tell "failed" from "empty"
+- [ ] Empty states for chapters/volumes — series with 0 chapters/volumes renders blank space, indistinguishable from a loading state
+- [ ] Alt text on series cover images — covers use `alt=""` instead of the series title (`elements/series.gleam`), hurts screen-reader users
+- [ ] Mobile/responsive polish — `w-screen`/`h-screen` on login/setup pages (safe-area issue), cramped card grid on `/all` at small widths, dropdown menu overflows on narrow screens
+- [ ] Fix N+1 metadata calls on home/search — home dashboard and search results fire one `/api/series/metadata` request per series shown instead of batching
