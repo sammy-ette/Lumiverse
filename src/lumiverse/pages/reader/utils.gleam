@@ -36,6 +36,9 @@ pub fn add_listener(type_: String, listener: fn(a) -> Nil) -> Nil
 @external(javascript, "./reader_ffi.mjs", "removeListeners")
 pub fn remove_listeners() -> Nil
 
+@external(javascript, "./reader_ffi.mjs", "devicePixelRatio")
+pub fn device_pixel_ratio() -> Float
+
 pub fn range(from: Int, to: Int) -> List(Int) {
   case from > to {
     True -> []

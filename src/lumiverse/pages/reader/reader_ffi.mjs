@@ -30,6 +30,10 @@ export function windowScrollTo(y) {
   window.scrollTo(0, y);
 }
 
+export function devicePixelRatio() {
+  return window.devicePixelRatio || 1;
+}
+
 // Saved position used to sync scroll across zen transitions
 let _savedPos = 0;
 

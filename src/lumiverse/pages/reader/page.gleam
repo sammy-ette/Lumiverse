@@ -105,9 +105,7 @@ pub fn init(_) {
         Nil
       }),
       effect.from(fn(dispatch) {
-        utils.add_listener("scroll", fn(_) {
-          dispatch(model.LongStripScroll)
-        })
+        utils.add_listener("scroll", fn(_) { dispatch(model.LongStripScroll) })
         Nil
       }),
     ]),
@@ -489,7 +487,11 @@ pub fn view(m: model.Model) {
 fn reader_view(m: model.Model, progress: reader.Progress) {
   let user = account.get()
   let viewport_w =
-    float.truncate(int.to_float(window.inner_width(window.self())) *. 1.25)
+    float.truncate(
+      int.to_float(window.inner_width(window.self()))
+      *. utils.device_pixel_ratio()
+      *. 1.25,
+    )
   let page_image_url = fn(page: Int) {
     image_url.reader_page(
       progress.chapter_id,
