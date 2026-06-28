@@ -39,6 +39,9 @@ pub fn remove_listeners() -> Nil
 @external(javascript, "./reader_ffi.mjs", "devicePixelRatio")
 pub fn device_pixel_ratio() -> Float
 
+@external(javascript, "./reader_ffi.mjs", "preloadImage")
+pub fn preload_image(url: String) -> Nil
+
 pub fn range(from: Int, to: Int) -> List(Int) {
   case from > to {
     True -> []

@@ -19,8 +19,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/compress"
 	"github.com/gofiber/fiber/v3/middleware/etag"
-	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/proxy"
+	"github.com/joho/godotenv"
 	"gorm.io/gorm"
 	gormlog "gorm.io/gorm/logger"
 )
@@ -40,7 +40,14 @@ var (
 )
 
 type UserPreference struct {
-	Username string `gorm:"primaryKey"`
+	Username              string `gorm:"primaryKey"`
+	AniListAccessToken    string
+	AniListRefreshToken   string
+	AniListTokenExpiresAt int64
+	MALAccessToken        string
+	MALRefreshToken       string
+	MALTokenExpiresAt     int64
+	ScrobbleRereadEnabled bool // if true, finishing a chapter on a series already Completed remotely starts a reread instead of being skipped
 }
 
 type AgeRestriction struct {
@@ -203,60 +210,81 @@ func getPreferences(c fiber.Ctx) error {
 		log.Printf("get user: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch preferences"})
 	}
-	return c.JSON(fiber.Map{"maxAgeRating": user.AgeRestriction.AgeRating})
+	var pref UserPreference
+	db.First(&pref, "username = ?", account.Username)
+	return c.JSON(fiber.Map{
+		"maxAgeRating":  user.AgeRestriction.AgeRating,
+		"rereadEnabled": pref.ScrobbleRereadEnabled,
+	})
 }
 
 func updatePreferences(c fiber.Ctx) error {
 	account := c.Locals("account").(*KavitaAccount)
 
+	// Pointers so a caller can update just one field (e.g. the reread toggle)
+	// without accidentally resetting the other to its zero value on Kavita.
 	var body struct {
-		MaxAgeRating int `json:"maxAgeRating"`
+		MaxAgeRating  *int  `json:"maxAgeRating"`
+		RereadEnabled *bool `json:"rereadEnabled"`
 	}
 	if err := c.Bind().JSON(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid body"})
 	}
 
-	if kavitaAPIKey == "" {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "preference updates are not available"})
+	var pref UserPreference
+	db.FirstOrCreate(&pref, UserPreference{Username: account.Username})
+	if body.RereadEnabled != nil {
+		pref.ScrobbleRereadEnabled = *body.RereadEnabled
+		if err := db.Save(&pref).Error; err != nil {
+			log.Printf("save preference: %v", err)
+		}
 	}
 
-	user, err := getUserByUsername(account.Username)
-	if err != nil {
-		log.Printf("get user: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch user"})
+	maxAgeRating := 0
+	if body.MaxAgeRating != nil {
+		if kavitaAPIKey == "" {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "preference updates are not available"})
+		}
+
+		user, err := getUserByUsername(account.Username)
+		if err != nil {
+			log.Printf("get user: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch user"})
+		}
+
+		libraries := make([]int, len(user.Libraries))
+		for i, lib := range user.Libraries {
+			libraries[i] = lib.ID
+		}
+
+		maxAgeRating = *body.MaxAgeRating
+		update := UpdateAccountRequest{
+			UserID:           user.ID,
+			Username:         user.Username,
+			Roles:            user.Roles,
+			Libraries:        libraries,
+			AgeRestriction:   AgeRestriction{AgeRating: maxAgeRating, IncludeUnknowns: false},
+			Email:            user.Email,
+			IdentityProvider: user.IdentityProvider,
+		}
+
+		payload, err := json.Marshal(update)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to build update request"})
+		}
+		resp, err := kavitaDo(http.MethodPost, "/api/Account/update", bytes.NewReader(payload))
+		if err != nil {
+			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "kavita update failed"})
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode >= 300 {
+			respBody, _ := io.ReadAll(resp.Body)
+			log.Printf("kavita update failed (%d): %s", resp.StatusCode, respBody)
+			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "kavita update failed"})
+		}
 	}
 
-	libraries := make([]int, len(user.Libraries))
-	for i, lib := range user.Libraries {
-		libraries[i] = lib.ID
-	}
-
-	update := UpdateAccountRequest{
-		UserID:           user.ID,
-		Username:         user.Username,
-		Roles:            user.Roles,
-		Libraries:        libraries,
-		AgeRestriction:   AgeRestriction{AgeRating: body.MaxAgeRating, IncludeUnknowns: false},
-		Email:            user.Email,
-		IdentityProvider: user.IdentityProvider,
-	}
-
-	payload, err := json.Marshal(update)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to build update request"})
-	}
-	resp, err := kavitaDo(http.MethodPost, "/api/Account/update", bytes.NewReader(payload))
-	if err != nil {
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "kavita update failed"})
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
-		log.Printf("kavita update failed (%d): %s", resp.StatusCode, respBody)
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "kavita update failed"})
-	}
-
-	return c.JSON(fiber.Map{"maxAgeRating": body.MaxAgeRating})
+	return c.JSON(fiber.Map{"maxAgeRating": maxAgeRating, "rereadEnabled": pref.ScrobbleRereadEnabled})
 }
 
 // fixCookieAttrs rewrites Set-Cookie attributes from Kavita so they work when
@@ -414,6 +442,10 @@ func loadAssets() {
 }
 
 func main() {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		log.Printf("warning: error loading .env file: %v", err)
+	}
+
 	kavitaURL = os.Getenv("KAVITA_URL")
 	kavitaAPIKey = os.Getenv("KAVITA_API_KEY")
 
@@ -421,6 +453,7 @@ func main() {
 		log.Fatal("KAVITA_URL not set")
 	}
 
+	initScrobble()
 	loadAssets()
 
 	if err := vips.Startup(nil); err != nil {
@@ -469,7 +502,7 @@ func main() {
 	sqlDB.SetMaxOpenConns(1)
 	sqlDB.SetMaxIdleConns(1)
 	sqlDB.SetConnMaxLifetime(time.Hour)
-	db.AutoMigrate(&UserPreference{})
+	db.AutoMigrate(&UserPreference{}, &SeriesMapping{})
 
 	app := fiber.New(fiber.Config{
 		ReadBufferSize:  16 * 1024,
@@ -478,12 +511,26 @@ func main() {
 		WriteTimeout:    60 * time.Second,
 		IdleTimeout:     120 * time.Second,
 	})
-	app.Use(logger.New())
+	// app.Use(logger.New())
 	app.Use(compress.New(compress.Config{Level: compress.LevelBestSpeed}))
 
-	lumiverse := app.Group("/api/lumiverse", authRequired)
+	lumiverse := app.Group("/api/lumiverse")
+	// Not behind authRequired: these are hit by the browser navigating back
+	// from AniList/MAL, which carries no Authorization header. See the
+	// handler comments in scrobble.go for how identity is recovered instead.
+	lumiverse.Get("/scrobble/anilist/callback", anilistCallbackHandler)
+	lumiverse.Get("/scrobble/mal/callback", malCallbackHandler)
+
+	lumiverse.Use(authRequired)
 	lumiverse.Get("/preferences", getPreferences)
 	lumiverse.Put("/preferences", updatePreferences)
+
+	lumiverse.Get("/scrobble/status", scrobbleStatusHandler)
+	lumiverse.Post("/scrobble/chapter-read", scrobbleChapterReadHandler)
+	lumiverse.Get("/scrobble/anilist/login", anilistLoginHandler)
+	lumiverse.Delete("/scrobble/anilist", anilistDisconnectHandler)
+	lumiverse.Get("/scrobble/mal/login", malLoginHandler)
+	lumiverse.Delete("/scrobble/mal", malDisconnectHandler)
 
 	if kavitaURL != "" {
 		imgCache := newImageCache()

@@ -8,7 +8,6 @@ pub type Model {
     id: Int,
     loading: Bool,
     progress: option.Option(Result(reader.Progress, rsvp.Error)),
-    cont_point: option.Option(reader.ContinuePoint),
     next_chapter: option.Option(Int),
     prev_chapter: option.Option(Int),
     chapter_info: option.Option(reader.ChapterInfo),
@@ -74,7 +73,6 @@ pub type Msg {
   PreviousChapter(Result(Int, rsvp.Error))
   NextChapter(Result(Int, rsvp.Error))
   ProgressRetrieved(Result(reader.Progress, rsvp.Error))
-  ContinuePointRetrieved(Result(reader.ContinuePoint, rsvp.Error))
   ChapterInfoRetrieved(Result(reader.ChapterInfo, rsvp.Error))
   SeriesMetadataRetrieved(Result(series.Metadata, rsvp.Error))
   NextChapterInfoPrefetched(Result(reader.ChapterInfo, rsvp.Error))

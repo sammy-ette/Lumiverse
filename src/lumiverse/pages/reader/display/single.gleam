@@ -1,11 +1,9 @@
 import gleam/dynamic/decode
 import gleam/float
 import gleam/int
-import gleam/list
 import lumiverse/api/reader
 import lumiverse/pages/reader/elements
 import lumiverse/pages/reader/model
-import lumiverse/pages/reader/utils
 import lustre/attribute
 import lustre/element
 import lustre/element/html
@@ -115,16 +113,6 @@ fn page_view(
         attribute.src(page_image_url(progress.page_number)),
         event.on("load", { model.PageLoaded |> decode.success }),
       ]),
-      html.div(
-        [attribute.class("hidden")],
-        list.map(utils.range(1, m.prefs.preload_count), fn(offset) {
-          html.img([
-            attribute.src(page_image_url(progress.page_number + offset)),
-            attribute.alt(""),
-            attribute.class("hidden"),
-          ])
-        }),
-      ),
     ],
   )
 }

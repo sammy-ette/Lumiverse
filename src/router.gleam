@@ -16,6 +16,7 @@ pub type Route {
   All
   Settings
   Preferences
+  Integrations
   Series(String)
   Search(SearchParams)
   NotFound
@@ -44,6 +45,7 @@ pub fn uri_to_route(uri: uri.Uri) -> Route {
       "/setup" -> Setup
       "/settings" -> Settings
       "/preferences" -> Preferences
+      "/integrations" -> Integrations
       "/login" -> Login
       "/upload" -> Upload
       "/all" -> All

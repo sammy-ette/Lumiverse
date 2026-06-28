@@ -20,3 +20,21 @@ pub fn set_preferences(max_age_rating: Int, resp: api.Response(Int, b)) {
     resp,
   )
 }
+
+fn reread_decoder() -> decode.Decoder(Bool) {
+  use reread_enabled <- decode.field("rereadEnabled", decode.bool)
+  decode.success(reread_enabled)
+}
+
+pub fn get_reread_enabled(resp: api.Response(Bool, b)) {
+  fetch.get("/api/lumiverse/preferences", reread_decoder(), resp)
+}
+
+pub fn set_reread_enabled(enabled: Bool, resp: api.Response(Bool, b)) {
+  fetch.put(
+    "/api/lumiverse/preferences",
+    json.object([#("rereadEnabled", json.bool(enabled))]),
+    reread_decoder(),
+    resp,
+  )
+}

@@ -19,6 +19,7 @@ import lumiverse/elements/dropdown
 import lumiverse/pages/all
 import lumiverse/pages/error
 import lumiverse/pages/home
+import lumiverse/pages/integrations
 import lumiverse/pages/login
 import lumiverse/pages/preferences
 import lumiverse/pages/reader/page as reader
@@ -99,6 +100,7 @@ pub fn main() {
   let assert Ok(_) = reader.register()
   let assert Ok(_) = settings.register()
   let assert Ok(_) = preferences.register()
+  let assert Ok(_) = integrations.register()
   let assert Ok(_) = search.register()
   let assert Ok(_) = lustre.start(app, "#app", Nil)
 }
@@ -612,8 +614,15 @@ fn user_dropdown_items(is_adult: Bool) {
     dropdown.MenuItem(
       "Preferences",
       option.None,
-      ChangeRoute(router.Preferences),
+      PushRoute("/preferences"),
       option.Some("ph ph-[gear]"),
+      False,
+    ),
+    dropdown.MenuItem(
+      "Integrations",
+      option.None,
+      PushRoute("/integrations"),
+      option.Some("ph ph-[plugs]"),
       False,
     ),
     dropdown.MenuItem(
@@ -639,6 +648,7 @@ fn view_main(route: router.Route, acc: account.Account) {
         router.Home -> home.element()
         router.All -> all.element([])
         router.Preferences -> preferences.element()
+        router.Integrations -> integrations.element()
         router.Settings -> settings.element([toasts.on_toast(ShowToast)])
         router.Series(series_id) ->
           series.element([

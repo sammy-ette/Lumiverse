@@ -12,6 +12,7 @@ import localstorage
 import lumiverse/api/account
 import lumiverse/api/image_url
 import lumiverse/api/reader
+import lumiverse/api/scrobble
 import lumiverse/api/series
 import lumiverse/components
 import lumiverse/pages/reader/display/long_strip
@@ -65,7 +66,6 @@ pub fn init(_) {
       id: 0,
       loading: True,
       progress: option.None,
-      cont_point: option.None,
       prev_chapter: option.None,
       next_chapter: option.None,
       chapter_info: option.None,
@@ -112,6 +112,35 @@ pub fn init(_) {
   )
 }
 
+fn build_page_url(chapter_id: Int, page: Int) -> String {
+  let user = account.get()
+  let viewport_w =
+    float.truncate(
+      int.to_float(window.inner_width(window.self()))
+      *. utils.device_pixel_ratio()
+      *. 1.25,
+    )
+  image_url.reader_page(chapter_id, page, user |> account.image_key, viewport_w)
+}
+
+fn preload_pages(
+  chapter_id: Int,
+  from_page: Int,
+  max_page: Int,
+  count: Int,
+) -> effect.Effect(model.Msg) {
+  effect.from(fn(_) {
+    utils.range(1, count)
+    |> list.each(fn(offset) {
+      let page = from_page + offset
+      case page <= max_page {
+        True -> utils.preload_image(build_page_url(chapter_id, page))
+        False -> Nil
+      }
+    })
+  })
+}
+
 fn apply_chapter_info(
   m: model.Model,
   chapter_info: reader.ChapterInfo,
@@ -135,10 +164,6 @@ fn apply_chapter_info(
   #(
     m,
     effect.batch([
-      reader.continue_point(
-        chapter_info.series_id,
-        model.ContinuePointRetrieved,
-      ),
       reader.prev_chapter(
         chapter_info.series_id,
         chapter_info.volume_id,
@@ -154,7 +179,13 @@ fn apply_chapter_info(
       series.metadata(chapter_info.series_id, model.SeriesMetadataRetrieved),
       case m.reading_mode {
         model.LongStrip -> effect.from(fn(_) { utils.observe_lazy_images() })
-        model.PageByPage -> effect.none()
+        model.PageByPage ->
+          preload_pages(
+            updated_progress.chapter_id,
+            updated_progress.page_number,
+            chapter_info.pages - 1,
+            m.prefs.preload_count,
+          )
       },
     ]),
   )
@@ -170,7 +201,6 @@ pub fn update(m: model.Model, msg: model.Msg) {
         progress: option.None,
         chapter_info: option.None,
         pending_chapter_info: option.None,
-        cont_point: option.None,
         prev_chapter: option.None,
         next_chapter: option.None,
       ),
@@ -220,10 +250,6 @@ pub fn update(m: model.Model, msg: model.Msg) {
         _, _ -> #(m, effect.none())
       }
     }
-    model.ContinuePointRetrieved(Ok(cont_point)) -> #(
-      model.Model(..m, cont_point: option.Some(cont_point)),
-      effect.none(),
-    )
     model.PreviousChapter(Ok(id)) -> #(
       model.Model(..m, prev_chapter: case id {
         -1 -> option.None
@@ -249,25 +275,32 @@ pub fn update(m: model.Model, msg: model.Msg) {
         model.RTL -> update(m, model.Next)
       }
     model.Next -> {
-      let assert option.Some(cont_point) = m.cont_point
+      let assert option.Some(chapter_info) = m.chapter_info
       let assert option.Some(Ok(current_progress)) = m.progress
       let advanced_progress =
         reader.Progress(
           ..current_progress,
           page_number: current_progress.page_number + 1
-            |> int.clamp(min: 0, max: cont_point.pages),
+            |> int.clamp(min: 0, max: chapter_info.pages),
         )
       utils.scroll_reader()
       // Prefetch next chapter's chapter_info when near the end of the current chapter
       // chapter_info is slow on the server on first request
       let prefetch_eff = case
         m.next_chapter,
-        advanced_progress.page_number >= cont_point.pages - 10
+        advanced_progress.page_number >= chapter_info.pages - 10
       {
         option.Some(next_id), True ->
           reader.chapter_info(next_id, model.NextChapterInfoPrefetched)
         _, _ -> effect.none()
       }
+      let preload_eff =
+        preload_pages(
+          advanced_progress.chapter_id,
+          advanced_progress.page_number,
+          chapter_info.pages - 1,
+          m.prefs.preload_count,
+        )
       #(
         model.Model(
           ..m,
@@ -277,6 +310,7 @@ pub fn update(m: model.Model, msg: model.Msg) {
         effect.batch([
           reader.save_progress(advanced_progress, model.ProgressUpdate),
           prefetch_eff,
+          preload_eff,
         ]),
       )
     }
@@ -293,8 +327,8 @@ pub fn update(m: model.Model, msg: model.Msg) {
             }
           }
         num -> {
-          let assert option.Some(cont_point) = m.cont_point
-          let num = case current_progress.page_number == cont_point.pages {
+          let assert option.Some(chapter_info) = m.chapter_info
+          let num = case current_progress.page_number == chapter_info.pages {
             True -> num - 1
             False -> num
           }
@@ -307,15 +341,23 @@ pub fn update(m: model.Model, msg: model.Msg) {
               progress: option.Some(Ok(advanced_progress)),
               image_loaded: False,
             ),
-            reader.save_progress(advanced_progress, model.ProgressUpdate),
+            effect.batch([
+              reader.save_progress(advanced_progress, model.ProgressUpdate),
+              preload_pages(
+                advanced_progress.chapter_id,
+                advanced_progress.page_number,
+                chapter_info.pages - 1,
+                m.prefs.preload_count,
+              ),
+            ]),
           )
         }
       }
     }
     model.GoToPage(page) -> {
       let assert option.Some(Ok(current_progress)) = m.progress
-      let assert option.Some(cont_point) = m.cont_point
-      let clamped = int.clamp(page, min: 0, max: cont_point.pages - 1)
+      let assert option.Some(chapter_info) = m.chapter_info
+      let clamped = int.clamp(page, min: 0, max: chapter_info.pages - 1)
       let new_progress =
         reader.Progress(..current_progress, page_number: clamped)
       utils.scroll_reader()
@@ -326,7 +368,15 @@ pub fn update(m: model.Model, msg: model.Msg) {
           image_loaded: False,
           editing_page: False,
         ),
-        reader.save_progress(new_progress, model.ProgressUpdate),
+        effect.batch([
+          reader.save_progress(new_progress, model.ProgressUpdate),
+          preload_pages(
+            new_progress.chapter_id,
+            new_progress.page_number,
+            chapter_info.pages - 1,
+            m.prefs.preload_count,
+          ),
+        ]),
       )
     }
     model.EditPage -> #(model.Model(..m, editing_page: True), effect.none())
@@ -336,10 +386,10 @@ pub fn update(m: model.Model, msg: model.Msg) {
         Ok(n) -> update(m, model.GoToPage(n - 1))
       }
     model.EndStrip -> {
-      let assert option.Some(cont_point) = m.cont_point
+      let assert option.Some(chapter_info) = m.chapter_info
       let assert option.Some(Ok(current_progress)) = m.progress
       let finished_progress =
-        reader.Progress(..current_progress, page_number: cont_point.pages)
+        reader.Progress(..current_progress, page_number: chapter_info.pages)
       #(
         model.Model(..m, progress: option.Some(Ok(finished_progress))),
         effect.batch([
@@ -349,9 +399,9 @@ pub fn update(m: model.Model, msg: model.Msg) {
       )
     }
     model.ProgressUpdate(Ok(Nil)) -> {
-      let assert option.Some(cont_point) = m.cont_point
+      let assert option.Some(chapter_info) = m.chapter_info
       let assert option.Some(Ok(current_progress)) = m.progress
-      case int.compare(current_progress.page_number, cont_point.pages) {
+      case int.compare(current_progress.page_number, chapter_info.pages) {
         order.Eq -> {
           let next_uri = case m.next_chapter {
             option.None ->
@@ -360,7 +410,14 @@ pub fn update(m: model.Model, msg: model.Msg) {
           }
           #(
             model.Model(..m, progress: option.None),
-            modem.push(next_uri, option.None, option.None),
+            effect.batch([
+              modem.push(next_uri, option.None, option.None),
+              scrobble.report_chapter_read(
+                current_progress.series_id,
+                current_progress.chapter_id,
+                fn(_) { model.Nothing },
+              ),
+            ]),
           )
         }
         _ -> #(m, effect.none())

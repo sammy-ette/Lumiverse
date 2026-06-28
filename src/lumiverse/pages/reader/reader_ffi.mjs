@@ -34,6 +34,11 @@ export function devicePixelRatio() {
   return window.devicePixelRatio || 1;
 }
 
+export function preloadImage(url) {
+  const img = new Image();
+  img.src = url;
+}
+
 // Saved position used to sync scroll across zen transitions
 let _savedPos = 0;
 

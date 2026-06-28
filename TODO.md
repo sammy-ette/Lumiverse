@@ -34,7 +34,7 @@
 - [ ] Library statistics — total series, chapters, pages, storage used
 
 ## Integrations / Platform
-- [ ] Scrobbling status UI — show AniList/MAL sync state (Kavita already tracks this)
+- [x] Scrobbling — AniList/MyAnimeList progress sync, built ourselves (not via Kavita+); `/integrations` page
 - [x] PWA support — manifest.json missing, so app isn't installable yet (service worker/offline caching already exists)
 - [ ] Random series picker — "surprise me" button, distinct from the randomized carousel row (low priority)
 
