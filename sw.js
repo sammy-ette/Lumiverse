@@ -3,7 +3,7 @@ importScripts(
 );
 
 const CACHE_VERSION = '__CACHE_VERSION__';
-const { routing, strategies, expiration, precaching, core } = workbox;
+const { routing, strategies, expiration, precaching, core, cacheableResponse } = workbox;
 
 core.skipWaiting();
 core.clientsClaim();
@@ -30,6 +30,7 @@ routing.registerRoute(
   new strategies.CacheFirst({
     cacheName: `lumiverse-reader-${CACHE_VERSION}`,
     plugins: [
+      new cacheableResponse.CacheableResponsePlugin({ statuses: [0, 200] }),
       new expiration.ExpirationPlugin({ maxAgeSeconds: 24 * 60 * 60 }),
     ],
   })
@@ -50,7 +51,7 @@ routing.registerRoute(
 routing.registerRoute(
   ({ url }) =>
     url.pathname.startsWith('/api/series/metadata') ||
-    url.pathname.startsWith('/api/stream/') ||
+    url.pathname.startsWith('/api/stream/'),
   new strategies.StaleWhileRevalidate({
     cacheName: `lumiverse-api-${CACHE_VERSION}`,
     plugins: [
