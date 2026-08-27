@@ -2,7 +2,7 @@
 
 > A frontend for Kavita.
 
-Lumiverse is a self-hosted Kavita frontend that runs faster, looks faster, and delivers images in an optimized way.
+Lumiverse is a self-hosted Kavita frontend that runs faster, looks beautiful, and delivers images in an optimized way.
 
 ![](image.png)
 
